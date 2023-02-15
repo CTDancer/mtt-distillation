@@ -6,6 +6,7 @@ from tqdm import tqdm
 from utils import get_dataset, get_network, get_daparam,\
     TensorDataset, epoch, ParamDiffAug
 import copy
+import pdb
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -36,6 +37,8 @@ def main(args):
     labels_all = []
     indices_class = [[] for c in range(num_classes)]
     print("BUILDING DATASET")
+    pdb.set_trace()
+    
     for i in tqdm(range(len(dst_train))):
         sample = dst_train[i]
         images_all.append(torch.unsqueeze(sample[0], dim=0))

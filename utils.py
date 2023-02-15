@@ -80,6 +80,25 @@ def get_dataset(dataset, data_path, batch_size=1, subset="imagenette", args=None
         class_names = dst_train.classes
         class_map = {x:x for x in range(num_classes)}
 
+    elif dataset == 'CRC':
+        channel = 3
+        im_size = (224, 224)
+        num_classes = 2
+        # I don't know the exact mean and std of CRC
+        mean = [0.485, 0.456, 0.406]
+        std = [0.229, 0.224, 0.225]
+        if args.zca:
+            transform = transforms.Compose([transforms.ToTensor()])
+        else:
+            transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+        train_dir = '../datasets/CRC_small/CRC_DX_train'
+        test_dir = '../datasets/CRC_small/CRC_DX_test'
+        dst_train = datasets.ImageFolder(train_dir, transform=transform)
+        dst_test = datasets.ImageFolder(test_dir, transform=transform)
+        class_names = ['MSIMUT', 'MSS']
+        # I don't know exactly what class_map does
+        class_map = {x:x for x in range(num_classes)}
+
 
     elif dataset == 'ImageNet':
         channel = 3
