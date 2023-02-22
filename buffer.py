@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 from utils import get_dataset, get_network, get_daparam,\
-    TensorDataset, epoch, ParamDiffAug
+    TensorDataset, epoch, ParamDiffAug, get_CRC, CRCDataset
 import copy
 import pdb
 
@@ -17,7 +17,10 @@ def main(args):
     args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
     args.dsa_param = ParamDiffAug()
 
-    channel, im_size, num_classes, class_names, mean, std, dst_train, dst_test, testloader, loader_train_dict, class_map, class_map_inv = get_dataset(args.dataset, args.data_path, args.batch_real, args.subset, args=args)
+    if args.dataset != 'CRC' and args.dataset != 'CRC_small':
+        channel, im_size, num_classes, class_names, mean, std, dst_train, dst_test, testloader, loader_train_dict, class_map, class_map_inv = get_dataset(args.dataset, args.data_path, args.batch_real, args.subset, args=args)
+    elif args.dataset == 'CRC' or args.dataset == 'CRC_small':
+        channel, im_size, num_classes, dst_train, dst_test, testloader, class_map, train_fnames = get_CRC(args.dataset, args.batch_real, args.subset, args) 
 
     # print('\n================== Exp %d ==================\n '%exp)
     print('Hyper-parameters: \n', args.__dict__)
@@ -37,7 +40,7 @@ def main(args):
     labels_all = []
     indices_class = [[] for c in range(num_classes)]
     print("BUILDING DATASET")
-    pdb.set_trace()
+    # pdb.set_trace()
     
     for i in tqdm(range(len(dst_train))):
         sample = dst_train[i]
@@ -59,9 +62,14 @@ def main(args):
 
     trajectories = []
 
-    dst_train = TensorDataset(copy.deepcopy(images_all.detach()), copy.deepcopy(labels_all.detach()))
-    trainloader = torch.utils.data.DataLoader(dst_train, batch_size=args.batch_train, shuffle=True, num_workers=0)
-
+    if args.dataset != 'CRC' and args.dataset != 'CRC_small':
+        dst_train = TensorDataset(copy.deepcopy(images_all.detach()), copy.deepcopy(labels_all.detach()))
+        trainloader = torch.utils.data.DataLoader(dst_train, batch_size=args.batch_train, shuffle=True, num_workers=0)
+    elif args.dataset == 'CRC' or args.dataset == 'CRC_small':
+        # pdb.set_trace()
+        dst_train = CRCDataset(copy.deepcopy(images_all.detach()), copy.deepcopy(labels_all.detach()), copy.deepcopy(train_fnames))
+        trainloader = torch.utils.data.DataLoader(dst_train, batch_size=args.batch_train, shuffle=True, num_workers=0)
+        
     ''' set augmentation for whole-dataset training '''
     args.dc_aug_param = get_daparam(args.dataset, args.model, args.model, None)
     args.dc_aug_param['strategy'] = 'crop_scale_rotate'  # for whole-dataset training
@@ -134,5 +142,3 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     main(args)
-
-

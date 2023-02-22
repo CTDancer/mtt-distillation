@@ -13,6 +13,9 @@ from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 from scipy.ndimage.interpolation import rotate as scipyrotate
 from networks import MLP, ConvNet, LeNet, AlexNet, VGG11BN, VGG11, ResNet18, ResNet18BN_AP, ResNet18_AP
+from sklearn.metrics import roc_auc_score
+import copy
+import pdb
 
 class Config:
     imagenette = [0, 217, 482, 491, 497, 566, 569, 571, 574, 701]
@@ -42,6 +45,89 @@ class Config:
     }
 
 config = Config()
+
+def get_CRC(dataset, data_path, batch_size=1, args=None):
+    if dataset == 'CRC_small':
+        channel = 3
+        im_size = (224, 224)
+        num_classes = 2
+        # I don't know the exact mean and std of CRC
+        mean = [0.485, 0.456, 0.406]
+        std = [0.229, 0.224, 0.225]
+        if args.zca:
+            transform = transforms.Compose([transforms.ToTensor()])
+        else:
+            transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+        train_dir = '../datasets/CRC_small/CRC_DX_train'
+        test_dir = '../datasets/CRC_small/CRC_DX_test'
+        dst_train = datasets.ImageFolder(train_dir, transform=transform)
+        dst_test = datasets.ImageFolder(test_dir, transform=transform)
+        class_names = ['MSIMUT', 'MSS']
+        train_ann = '../datasets/CRC_small/annotation/train_ann.txt'
+        test_ann = '../datasets/CRC_small/annotation/test_ann.txt'
+        
+        class_map = {x:x for x in range(num_classes)}
+        
+        with open(train_ann, "r") as f:
+            train_fnames = [line.split()[0] for line in f.readlines()]
+        with open(test_ann, "r") as f:
+            test_fnames = [line.split()[0] for line in f.readlines()]
+        
+        images_all=[]
+        labels_all=[]
+        
+        for i in range(len(dst_test)):
+            sample = dst_test[i]
+            images_all.append(torch.unsqueeze(sample[0], dim=0))
+            labels_all.append(class_map[torch.tensor(sample[1]).item()])
+
+        images_all = torch.cat(images_all, dim=0).to("cpu")
+        labels_all = torch.tensor(labels_all, dtype=torch.long, device="cpu")
+        
+        dst_test = CRCDataset(copy.deepcopy(images_all.detach()), copy.deepcopy(labels_all.detach()), copy.deepcopy(test_fnames))
+
+        
+    elif dataset == 'CRC':
+        channel = 3
+        im_size = (224, 224)
+        num_classes = 2
+        # I don't know the exact mean and std of CRC
+        mean = [0.485, 0.456, 0.406]
+        std = [0.229, 0.224, 0.225]
+        if args.zca:
+            transform = transforms.Compose([transforms.ToTensor()])
+        else:
+            transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+        train_dir = '../datasets/CRC/CRC_DX_train'
+        test_dir = '../datasets/CRC/CRC_DX_test'
+        dst_train = datasets.ImageFolder(train_dir, transform=transform)
+        dst_test = datasets.ImageFolder(test_dir, transform=transform)
+        class_names = ['MSIMUT', 'MSS']
+        # to be modified!!!
+        train_ann = '../datasets/CRC_small/annotation/train_ann.txt'
+        test_ann = '../datasets/CRC_small/annotation/test_ann.txt'
+        with open(train_ann, "r") as f:
+            train_fnames = [line.split()[0] for line in f.readlines()]
+        with open(test_ann, "r") as f:
+            test_fnames = [line.split()[0] for line in f.readlines()]
+            
+        class_map = {x:x for x in range(num_classes)}
+        
+        for i in range(len(dst_test)):
+            sample = dst_test[i]
+            images_all.append(torch.unsqueeze(sample[0], dim=0))
+            labels_all.append(class_map[torch.tensor(sample[1]).item()])
+
+        images_all = torch.cat(images_all, dim=0).to("cpu")
+        labels_all = torch.tensor(labels_all, dtype=torch.long, device="cpu")
+        
+        dst_test = CRCDataset(copy.deepcopy(images_all.detach()), copy.deepcopy(labels_all.detach()), copy.deepcopy(test_fnames))
+        
+    # pdb.set_trace()
+        
+    testloader = torch.utils.data.DataLoader(dst_test, batch_size=128, shuffle=False, num_workers=2)
+    
+    return channel, im_size, num_classes, dst_train, dst_test, testloader, class_map, train_fnames
 
 def get_dataset(dataset, data_path, batch_size=1, subset="imagenette", args=None):
 
@@ -80,24 +166,24 @@ def get_dataset(dataset, data_path, batch_size=1, subset="imagenette", args=None
         class_names = dst_train.classes
         class_map = {x:x for x in range(num_classes)}
 
-    elif dataset == 'CRC':
-        channel = 3
-        im_size = (224, 224)
-        num_classes = 2
-        # I don't know the exact mean and std of CRC
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
-        if args.zca:
-            transform = transforms.Compose([transforms.ToTensor()])
-        else:
-            transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
-        train_dir = '../datasets/CRC_small/CRC_DX_train'
-        test_dir = '../datasets/CRC_small/CRC_DX_test'
-        dst_train = datasets.ImageFolder(train_dir, transform=transform)
-        dst_test = datasets.ImageFolder(test_dir, transform=transform)
-        class_names = ['MSIMUT', 'MSS']
-        # I don't know exactly what class_map does
-        class_map = {x:x for x in range(num_classes)}
+    # elif dataset == 'CRC_small':
+    #     channel = 3
+    #     im_size = (224, 224)
+    #     num_classes = 2
+    #     # I don't know the exact mean and std of CRC
+    #     mean = [0.485, 0.456, 0.406]
+    #     std = [0.229, 0.224, 0.225]
+    #     if args.zca:
+    #         transform = transforms.Compose([transforms.ToTensor()])
+    #     else:
+    #         transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+    #     train_dir = '../datasets/CRC_small/CRC_DX_train'
+    #     test_dir = '../datasets/CRC_small/CRC_DX_test'
+    #     dst_train = datasets.ImageFolder(train_dir, transform=transform)
+    #     dst_test = datasets.ImageFolder(test_dir, transform=transform)
+    #     class_names = ['MSIMUT', 'MSS']
+    #     # I don't know exactly what class_map does
+    #     class_map = {x:x for x in range(num_classes)}
 
 
     elif dataset == 'ImageNet':
@@ -201,7 +287,20 @@ class TensorDataset(Dataset):
 
     def __len__(self):
         return self.images.shape[0]
-
+    
+class CRCDataset(Dataset):
+    def __init__(self, images, labels, fname):
+        self.images = images.detach().float()
+        self.labels = labels.detach()
+        self.fname = fname
+        
+    def __getitem__(self, index):
+        # print("INDEX = ")
+        # print(index)
+        return self.images[index], self.labels[index], self.fname[index]
+    
+    def __len__(self):
+        return self.images.shape[0]
 
 
 def get_default_convnet_setting():
@@ -316,7 +415,101 @@ def get_time():
     return str(time.strftime("[%Y-%m-%d %H:%M:%S]", time.localtime()))
 
 
+# def epoch(mode, dataloader, net, optimizer, criterion, args, aug, texture=False):
+#     loss_avg, acc_avg, num_exp, auc_avg = 0, 0, 0, 0
+#     net = net.to(args.device)
+
+#     if args.dataset == "ImageNet":
+#         class_map = {x: i for i, x in enumerate(config.img_net_classes)}
+
+#     if mode == 'train':
+#         net.train()
+#     else:
+#         net.eval()
+
+#     for i_batch, datum in enumerate(dataloader):
+#         img = datum[0].float().to(args.device)
+#         lab = datum[1].long().to(args.device)
+
+#         if mode == "train" and texture:
+#             img = torch.cat([torch.stack([torch.roll(im, (torch.randint(args.im_size[0]*args.canvas_size, (1,)), torch.randint(args.im_size[0]*args.canvas_size, (1,))), (1,2))[:,:args.im_size[0],:args.im_size[1]] for im in img]) for _ in range(args.canvas_samples)])
+#             lab = torch.cat([lab for _ in range(args.canvas_samples)])
+
+#         if aug:
+#             if args.dsa:
+#                 img = DiffAugment(img, args.dsa_strategy, param=args.dsa_param)
+#             else:
+#                 img = augment(img, args.dc_aug_param, device=args.device)
+
+#         if args.dataset == "ImageNet" and mode != "train":
+#             lab = torch.tensor([class_map[x.item()] for x in lab]).to(args.device)
+
+#         n_b = lab.shape[0]
+
+#         output = net(img)
+#         loss = criterion(output, lab)
+        
+#         # y_true = lab.cpu()
+#         # y_true = y_true.detach().numpy()
+        
+#         if args.dataset == 'CRC' or args.dataset == 'CRC_small' and len(np.unique(lab.cpu().data.numpy())) > 1:
+#             output = output.cpu()
+#             output = output.detach().numpy()
+#             sample_fname = datum[2]
+            # slide_ids = []
+            # for name in sample_fname:
+            #     if name[0:3] == 'MSI':  
+            #         slide_ids.append(name[24:36]+name[46])
+            #     elif name[0:3] == 'MSS':
+            #         slide_ids.append(name[21:33]+name[43])
+            # slide_ids = np.array(slide_ids)
+            
+#             unique_slide_ids = np.unique(slide_ids)
+#             slide_probs = []
+#             slide_labels = []
+#             for slide_id in unique_slide_ids:
+#                 slide_indices = np.where(slide_ids == slide_id)[0]
+#                 pred_labels = np.array(output)
+#                 slide_prob = np.mean(pred_labels[slide_indices])
+#                 slide_label = lab[slide_indices[0]]
+#                 slide_probs.append(slide_prob)
+#                 slide_labels.append(slide_label)
+            
+#             # slide_labels = slide_labels.cpu()
+#             # print(type(slide_labels))
+#             # slide_labels = np.array(slide_labels)
+#             # slide_preds = (np.array(slide_probs) > 0.5).astype(int)
+#             slide_labels = [label.cpu() if isinstance(label, torch.Tensor) else label for label in slide_labels]
+            
+#             slide_auc = roc_auc_score(slide_labels, slide_probs)
+#             auc_avg += slide_auc
+            
+#         elif args.dataset == 'CRC' or args.dataset == 'CRC_small' and len(np.unique(lab.cpu().data.numpy())) == 1:
+#             auc_avg += 0
+        
+#         else:  
+#             acc = np.sum(np.equal(np.argmax(output.cpu().data.numpy(), axis=-1), lab.cpu().data.numpy()))
+#             acc_avg += acc
+            
+#         loss_avg += loss.item()*n_b
+#         num_exp += n_b
+            
+#         if mode == 'train':
+#             optimizer.zero_grad()
+#             loss.backward()
+#             optimizer.step()
+        
+#         loss_avg /= num_exp
+
+#         if args.dataset == 'CRC' or args.dataset == 'CRC_small':
+#             auc_avg /= num_exp
+#             return loss_avg, auc_avg
+#         else:
+#             acc_avg /= num_exp
+#             return loss_avg, acc_avg
+
 def epoch(mode, dataloader, net, optimizer, criterion, args, aug, texture=False):
+    print(mode)
     loss_avg, acc_avg, num_exp = 0, 0, 0
     net = net.to(args.device)
 
@@ -327,6 +520,12 @@ def epoch(mode, dataloader, net, optimizer, criterion, args, aug, texture=False)
         net.train()
     else:
         net.eval()
+        
+    y_true = []
+    y_pred = []
+    slide_ids = []
+    
+    # pdb.set_trace()
 
     for i_batch, datum in enumerate(dataloader):
         img = datum[0].float().to(args.device)
@@ -349,6 +548,21 @@ def epoch(mode, dataloader, net, optimizer, criterion, args, aug, texture=False)
 
         output = net(img)
         loss = criterion(output, lab)
+        
+        for label in lab.cpu():
+            y_true.append(int(label))    # y_true[0] - tensor(0)
+        for prediction in output.cpu().data:
+            y_pred.append(float(prediction[0])) # y_pred[0] = tensor([-0.1160, -0.0665])
+        
+        if args.dataset == 'CRC' or args.dataset == 'CRC_small':
+            # pdb.set_trace()
+            sample_fname = datum[2]
+            for name in sample_fname:
+                if name[0:3] == 'MSI':  
+                    slide_ids.append(name[24:36]+name[46])
+                elif name[0:3] == 'MSS':
+                    slide_ids.append(name[21:33]+name[43])
+            
 
         acc = np.sum(np.equal(np.argmax(output.cpu().data.numpy(), axis=-1), lab.cpu().data.numpy()))
 
@@ -360,13 +574,33 @@ def epoch(mode, dataloader, net, optimizer, criterion, args, aug, texture=False)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
+            
     loss_avg /= num_exp
+    
+    # pdb.set_trace()
+    if args.dataset == 'CRC' or args.dataset == 'CRC_small':
+        unique_slide_ids = np.unique(slide_ids)
+        slide_probs = []
+        slide_labels = []
+
+        for slide_id in unique_slide_ids:
+            slide_ids = np.array(slide_ids)   # convert a list to numpy array
+            slide_indices = np.where(slide_ids == slide_id)[0]
+            pred_labels = np.array(y_pred)  # convert list to array so that I can use list to index
+            slide_prob = np.mean(pred_labels[slide_indices])
+            slide_label = y_true[slide_indices[0]]
+            slide_probs.append(slide_prob)
+            slide_labels.append(slide_label)
+        
+        slide_labels = np.array(slide_labels)
+        slide_preds = (np.array(slide_probs) > 0.5).astype(int) # 0.5 is a threshold I set for binary classification
+
+        slide_auc = roc_auc_score(slide_labels, slide_probs)
+        return loss_avg, slide_auc
+    
     acc_avg /= num_exp
 
     return loss_avg, acc_avg
-
-
 
 def evaluate_synset(it_eval, net, images_train, labels_train, testloader, args, return_loss=False, texture=False):
     net = net.to(args.device)
