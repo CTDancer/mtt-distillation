@@ -1,5 +1,5 @@
 import os
-import argparse
+import argparseutils
 import numpy as np
 import torch
 import torch.nn as nn
@@ -11,6 +11,7 @@ import wandb
 import copy
 import random
 from reparam_module import ReparamModule
+import pdb
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -32,7 +33,7 @@ def main(args):
     args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     eval_it_pool = np.arange(0, args.Iteration + 1, args.eval_it).tolist()
-    channel, im_size, num_classes, class_names, mean, std, dst_train, dst_test ''', testloader, loader_train_dict, class_map, class_map_inv''' = get_CRC(args.dataset, args.data_path, args.batch_real, args=args)
+    channel, im_size, num_classes, dst_train, dst_test, testloader = get_CRC(args.dataset, args.data_path, args.batch_real, args=args)
     model_eval_pool = get_eval_pool(args.eval_mode, args.model, args.model)
 
     im_res = im_size[0]
@@ -84,6 +85,7 @@ def main(args):
     images_all = []
     labels_all = []
     indices_class = [[] for c in range(num_classes)]
+    class_map = {x:x for x in range(num_classes)}
     print("BUILDING DATASET")
     for i in tqdm(range(len(dst_train))):
         sample = dst_train[i]
@@ -213,7 +215,7 @@ def main(args):
                     image_syn_eval, label_syn_eval = copy.deepcopy(image_save.detach()), copy.deepcopy(eval_labs.detach()) # avoid any unaware modification
 
                     args.lr_net = syn_lr.item()
-                    _, acc_train, acc_test, auc_test = evaluate_synset(it_eval, net_eval, image_syn_eval, label_syn_eval, testloader, args, texture=args.texture)
+                    _, acc_train, acc_test, auc_test = evaluate_synset(it_eval, net_eval, image_syn_eval, label_syn_eval, dst_test, testloader, args, texture=args.texture)
                     accs_test.append(acc_test)
                     accs_train.append(acc_train)
                     aucs_test.append(auc_test)
@@ -381,6 +383,8 @@ def main(args):
                 forward_params = student_params[-1].unsqueeze(0).expand(torch.cuda.device_count(), -1)
             else:
                 forward_params = student_params[-1]
+            
+            pdb.set_trace()
             x = student_net(x, flat_param=forward_params)
             ce_loss = criterion(x, this_y)
 
@@ -488,6 +492,8 @@ if __name__ == '__main__':
     parser.add_argument('--max_experts', type=int, default=None, help='number of experts to read per file (leave as None unless doing ablations)')
 
     parser.add_argument('--force_save', action='store_true', help='this will save images for 50ipc')
+    
+    parser.add_argument('--distributed', action='store_true', help='distill on multiple devices')
 
     args = parser.parse_args()
 

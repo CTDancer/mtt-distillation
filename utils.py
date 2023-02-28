@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import os
 import kornia as K
-from tqdm import tqdm
+import tqdm
 from torch.utils.data import Dataset, SequentialSampler, RandomSampler, BatchSampler
 from torchvision.datasets.folder import default_loader
 from torchvision import datasets, transforms
@@ -518,7 +518,7 @@ def epoch_syn(mode, dataloader, net, optimizer, criterion, args, aug, texture=Fa
 
     return loss_avg, acc_avg
 
-def evaluate_synset(it_eval, net, images_train, labels_train, testloader, args, return_loss=False, texture=False):
+def evaluate_synset(it_eval, net, images_train, labels_train, testset, testloader, args, return_loss=False, texture=False):
     net = net.to(args.device)
     images_train = images_train.to(args.device)
     labels_train = labels_train.to(args.device)
@@ -542,7 +542,7 @@ def evaluate_synset(it_eval, net, images_train, labels_train, testloader, args, 
         loss_train_list.append(loss_train)
         if ep == Epoch:
             with torch.no_grad():
-                loss_test, acc_test, auc_test = epoch('test', testloader, net, optimizer, criterion, args, aug=False)
+                loss_test, acc_test, auc_test = epoch('test', testloader, testset, 128, net, optimizer, criterion, args, aug=False)
         if ep in lr_schedule:
             lr *= 0.1
             optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=0.0005)
