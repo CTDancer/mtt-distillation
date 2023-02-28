@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 from utils import get_dataset, get_network, get_daparam,\
-    TensorDataset, epoch, ParamDiffAug, get_CRC, CRCDataset
+    TensorDataset, epoch, ParamDiffAug, get_CRC
 import copy
 import pdb
 
@@ -12,7 +12,6 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def main(args):
-
     args.dsa = True if args.dsa == 'True' else False
     args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
     args.dsa_param = ParamDiffAug()
@@ -20,7 +19,7 @@ def main(args):
     if args.dataset != 'CRC' and args.dataset != 'CRC_small':
         channel, im_size, num_classes, class_names, mean, std, dst_train, dst_test, testloader, loader_train_dict, class_map, class_map_inv = get_dataset(args.dataset, args.data_path, args.batch_real, args.subset, args=args)
     elif args.dataset == 'CRC' or args.dataset == 'CRC_small':
-        channel, im_size, num_classes, dst_train, dst_test, testloader, class_map, train_fnames = get_CRC(args.dataset, args.batch_real, args.subset, args) 
+        channel, im_size, num_classes, dst_train, dst_test, testloader = get_CRC(args.dataset, args.data_path, args.batch_real, args) 
 
     # print('\n================== Exp %d ==================\n '%exp)
     print('Hyper-parameters: \n', args.__dict__)
@@ -36,39 +35,13 @@ def main(args):
 
 
     ''' organize the real dataset '''
-    images_all = []
-    labels_all = []
-    indices_class = [[] for c in range(num_classes)]
+
     print("BUILDING DATASET")
-    # pdb.set_trace()
-    
-    for i in tqdm(range(len(dst_train))):
-        sample = dst_train[i]
-        images_all.append(torch.unsqueeze(sample[0], dim=0))
-        labels_all.append(class_map[torch.tensor(sample[1]).item()])
-
-    for i, lab in tqdm(enumerate(labels_all)):
-        indices_class[lab].append(i)
-    images_all = torch.cat(images_all, dim=0).to("cpu")
-    labels_all = torch.tensor(labels_all, dtype=torch.long, device="cpu")
-
-    for c in range(num_classes):
-        print('class c = %d: %d real images'%(c, len(indices_class[c])))
-
-    for ch in range(channel):
-        print('real images channel %d, mean = %.4f, std = %.4f'%(ch, torch.mean(images_all[:, ch]), torch.std(images_all[:, ch])))
-
     criterion = nn.CrossEntropyLoss().to(args.device)
 
     trajectories = []
 
-    if args.dataset != 'CRC' and args.dataset != 'CRC_small':
-        dst_train = TensorDataset(copy.deepcopy(images_all.detach()), copy.deepcopy(labels_all.detach()))
-        trainloader = torch.utils.data.DataLoader(dst_train, batch_size=args.batch_train, shuffle=True, num_workers=0)
-    elif args.dataset == 'CRC' or args.dataset == 'CRC_small':
-        # pdb.set_trace()
-        dst_train = CRCDataset(copy.deepcopy(images_all.detach()), copy.deepcopy(labels_all.detach()), copy.deepcopy(train_fnames))
-        trainloader = torch.utils.data.DataLoader(dst_train, batch_size=args.batch_train, shuffle=True, num_workers=0)
+    trainloader = torch.utils.data.DataLoader(dst_train, batch_size=args.batch_train, shuffle=True, num_workers=0)
         
     ''' set augmentation for whole-dataset training '''
     args.dc_aug_param = get_daparam(args.dataset, args.model, args.model, None)
@@ -91,14 +64,23 @@ def main(args):
         lr_schedule = [args.train_epochs // 2 + 1]
 
         for e in range(args.train_epochs):
+            if args.dataset == 'CRC' or args.dataset == 'CRC_small':
+                train_loss, train_acc, train_auc = epoch("train", dataloader=trainloader, dataset=dst_train, batch_size=args.batch_train, net=teacher_net, optimizer=teacher_optim,
+                                            criterion=criterion, args=args, aug=True)
 
-            train_loss, train_acc = epoch("train", dataloader=trainloader, net=teacher_net, optimizer=teacher_optim,
-                                        criterion=criterion, args=args, aug=True)
+                test_loss, test_acc, test_auc = epoch("test", dataloader=testloader, dataset=dst_test, batch_size=128, net=teacher_net, optimizer=None,
+                                            criterion=criterion, args=args, aug=False)
+                
+                print("Itr: {}\tEpoch: {}\tTrain Acc: {}\tTrain AUC: {}\nTest Acc: {}\tTest AUC: {}".format(it, e, train_acc, train_auc, test_acc, test_auc))
+                
+            else:
+                train_loss, train_acc = epoch("train", dataloader=trainloader, dataset=dst_train, batch_size=args.batch_train, net=teacher_net, optimizer=teacher_optim,
+                                            criterion=criterion, args=args, aug=True)
 
-            test_loss, test_acc = epoch("test", dataloader=testloader, net=teacher_net, optimizer=None,
-                                        criterion=criterion, args=args, aug=False)
+                test_loss, test_acc = epoch("test", dataloader=testloader, dataset=dst_test, batch_size=128, net=teacher_net, optimizer=None,
+                                            criterion=criterion, args=args, aug=False)    
 
-            print("Itr: {}\tEpoch: {}\tTrain Acc: {}\tTest Acc: {}".format(it, e, train_acc, test_acc))
+                print("Itr: {}\tEpoch: {}\tTrain Acc: {}\tTest Acc: {}".format(it, e, train_acc, test_acc))
 
             timestamps.append([p.detach().cpu() for p in teacher_net.parameters()])
 
@@ -139,6 +121,7 @@ if __name__ == '__main__':
     parser.add_argument('--mom', type=float, default=0, help='momentum')
     parser.add_argument('--l2', type=float, default=0, help='l2 regularization')
     parser.add_argument('--save_interval', type=int, default=10)
+    
 
     args = parser.parse_args()
     main(args)

@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.utils
 from tqdm import tqdm
-from utils import get_dataset, get_network, get_eval_pool, evaluate_synset, get_time, DiffAugment, ParamDiffAug
+from utils import get_dataset, get_network, get_eval_pool, evaluate_synset, get_time, DiffAugment, ParamDiffAug, get_CRC
 import wandb
 import copy
 import random
@@ -32,7 +32,7 @@ def main(args):
     args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     eval_it_pool = np.arange(0, args.Iteration + 1, args.eval_it).tolist()
-    channel, im_size, num_classes, class_names, mean, std, dst_train, dst_test, testloader, loader_train_dict, class_map, class_map_inv = get_dataset(args.dataset, args.data_path, args.batch_real, args.subset, args=args)
+    channel, im_size, num_classes, class_names, mean, std, dst_train, dst_test ''', testloader, loader_train_dict, class_map, class_map_inv''' = get_CRC(args.dataset, args.data_path, args.batch_real, args=args)
     model_eval_pool = get_eval_pool(args.eval_mode, args.model, args.model)
 
     im_res = im_size[0]
@@ -180,7 +180,11 @@ def main(args):
 
     best_acc = {m: 0 for m in model_eval_pool}
 
-    best_std = {m: 0 for m in model_eval_pool}
+    best_std_acc = {m: 0 for m in model_eval_pool}
+    
+    best_auc = {m: 0 for m in model_eval_pool}
+    
+    best_std_auc = {m: 0 for m in model_eval_pool}
 
     for it in range(0, args.Iteration+1):
         save_this_it = False
@@ -199,6 +203,7 @@ def main(args):
 
                 accs_test = []
                 accs_train = []
+                aucs_test = []
                 for it_eval in range(args.num_eval):
                     net_eval = get_network(model_eval, channel, num_classes, im_size).to(args.device) # get a random model
 
@@ -208,22 +213,36 @@ def main(args):
                     image_syn_eval, label_syn_eval = copy.deepcopy(image_save.detach()), copy.deepcopy(eval_labs.detach()) # avoid any unaware modification
 
                     args.lr_net = syn_lr.item()
-                    _, acc_train, acc_test = evaluate_synset(it_eval, net_eval, image_syn_eval, label_syn_eval, testloader, args, texture=args.texture)
+                    _, acc_train, acc_test, auc_test = evaluate_synset(it_eval, net_eval, image_syn_eval, label_syn_eval, testloader, args, texture=args.texture)
                     accs_test.append(acc_test)
                     accs_train.append(acc_train)
+                    aucs_test.append(auc_test)
                 accs_test = np.array(accs_test)
                 accs_train = np.array(accs_train)
+                aucs_test = np.array(aucs_test)
                 acc_test_mean = np.mean(accs_test)
                 acc_test_std = np.std(accs_test)
+                auc_test_mean = np.mean(aucs_test)
+                auc_test_std = np.std(aucs_test)
                 if acc_test_mean > best_acc[model_eval]:
                     best_acc[model_eval] = acc_test_mean
-                    best_std[model_eval] = acc_test_std
+                    best_std_acc[model_eval] = acc_test_std
                     save_this_it = True
-                print('Evaluate %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(accs_test), model_eval, acc_test_mean, acc_test_std))
+                if acc_test_mean > best_auc[model_eval]:
+                    best_auc[model_eval] = auc_test_mean
+                    best_std_auc[model_eval] = auc_test_std
+                    save_this_it = True
+                print('Evaluate ACC %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(accs_test), model_eval, acc_test_mean, acc_test_std))
+                print('Evaluate AUC %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(aucs_test), model_eval, auc_test_mean, auc_test_std))
                 wandb.log({'Accuracy/{}'.format(model_eval): acc_test_mean}, step=it)
                 wandb.log({'Max_Accuracy/{}'.format(model_eval): best_acc[model_eval]}, step=it)
-                wandb.log({'Std/{}'.format(model_eval): acc_test_std}, step=it)
-                wandb.log({'Max_Std/{}'.format(model_eval): best_std[model_eval]}, step=it)
+                wandb.log({'ACC_Std/{}'.format(model_eval): acc_test_std}, step=it)
+                wandb.log({'ACC_Max_Std/{}'.format(model_eval): best_std_acc[model_eval]}, step=it)
+                
+                wandb.log({'AUC/{}'.format(model_eval): auc_test_mean}, step=it)
+                wandb.log({'Max_AUC/{}'.format(model_eval): best_auc[model_eval]}, step=it)
+                wandb.log({'AUC_Std/{}'.format(model_eval): auc_test_std}, step=it)
+                wandb.log({'AUC_Max_Std/{}'.format(model_eval): best_std_auc[model_eval]}, step=it)
 
 
         if it in eval_it_pool and (save_this_it or it % 1000 == 0):
