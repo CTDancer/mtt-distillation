@@ -90,34 +90,8 @@ def get_CRC(dataset, data_path, batch_size=1, args=None):
             transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
         train_dir = '../datasets/CRC/CRC_DX_train'
         test_dir = '../datasets/CRC/CRC_DX_test'
-<<<<<<< HEAD
         dst_train = ImageFolderWithFilenamesAndIndices(train_dir, transform=transform)
         dst_test = ImageFolderWithFilenamesAndIndices(test_dir, transform=transform)
-=======
-        dst_train = datasets.ImageFolder(train_dir, transform=transform)
-        dst_test = datasets.ImageFolder(test_dir, transform=transform)
-        class_names = ['MSIMUT', 'MSS']
-        # to be modified!!!
-        train_ann = '../datasets/CRC_small/annotation/train_ann.txt'
-        test_ann = '../datasets/CRC_small/annotation/test_ann.txt'
-        with open(train_ann, "r") as f:
-            train_fnames = [line.split()[0] for line in f.readlines()]
-        with open(test_ann, "r") as f:
-            test_fnames = [line.split()[0] for line in f.readlines()]
-            
-        class_map = {x:x for x in range(num_classes)}
-        
-        for i in range(len(dst_test)):
-            sample = dst_test[i]
-            images_all.append(torch.unsqueeze(sample[0], dim=0))
-            labels_all.append(class_map[torch.tensor(sample[1]).item()])
-
-        images_all = torch.cat(images_all, dim=0).to("cpu")
-        labels_all = torch.tensor(labels_all, dtype=torch.long, device="cpu")
-        
-        dst_test = CRCDataset(copy.deepcopy(images_all.detach()), copy.deepcopy(labels_all.detach()), copy.deepcopy(test_fnames))
-        
->>>>>>> 56e952924ea69f10dc43360c1f241fcad1b25d61
         
     testloader = torch.utils.data.DataLoader(dst_test, batch_size=128, shuffle=False, num_workers=2)
     
@@ -262,21 +236,6 @@ class TensorDataset(Dataset):
 
     def __len__(self):
         return self.images.shape[0]
-<<<<<<< HEAD
-=======
-    
-class CRCDataset(Dataset):
-    def __init__(self, images, labels, fname):
-        self.images = images.detach().float()
-        self.labels = labels.detach()
-        self.fname = fname
-        
-    def __getitem__(self, index):
-        return self.images[index], self.labels[index], self.fname[index]
-    
-    def __len__(self):
-        return self.images.shape[0]
->>>>>>> 56e952924ea69f10dc43360c1f241fcad1b25d61
 
 
 def get_default_convnet_setting():
