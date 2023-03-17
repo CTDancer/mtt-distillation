@@ -147,8 +147,8 @@ def get_CRC(dataset, data_path, batch_size=1, args=None):
             transform = transforms.Compose([transforms.ToTensor()])
         else:
             transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
-        train_dir = '../datasets/CRC/CRC_DX_train'
-        test_dir = '../datasets/CRC/CRC_DX_test'
+        train_dir = '/home/dqwang/CRC_DX_train'
+        test_dir = '/home/dqwang/CRC_DX_test'
         dst_train = ImageFolderWithFilenamesAndIndices(train_dir, transform=transform)
         dst_test = ImageFolderWithFilenamesAndIndices(test_dir, transform=transform)
         
@@ -576,7 +576,7 @@ def epoch_syn(mode, dataloader, net, optimizer, criterion, args, aug, texture=Fa
 
     return loss_avg, acc_avg
 
-def evaluate_synset(it_eval, net, images_train, labels_train, testset, testloader, args, return_loss=False, texture=False):
+def evaluate_synset(it, it_eval, net, images_train, labels_train, testset, testloader, args, return_loss=False, texture=False):
     net = net.to(args.device)
     images_train = images_train.to(args.device)
     labels_train = labels_train.to(args.device)

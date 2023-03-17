@@ -1,0 +1,573 @@
+nohup: ignoring input
+/bin/bash: /home/dqwang/anaconda3/lib/libtinfo.so.6: no version information available (required by /bin/bash)
+/home/dqwang/anaconda3/envs/distillation_ct/lib/python3.9/site-packages/mmcv/__init__.py:20: UserWarning: On January 1, 2023, MMCV will release v2.0.0, in which it will remove components related to the training process and add a data transformation module. In addition, it will rename the package names mmcv to mmcv-lite and mmcv-full to mmcv. See https://github.com/open-mmlab/mmcv/blob/master/docs/en/compatibility.md for more details.
+  warnings.warn(
+wandb: Currently logged in as: tongchen (use `wandb login --relogin` to force relogin)
+CUDNN STATUS: True
+wandb: wandb version 0.14.0 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.12.11
+wandb: Run data is saved locally in /home/dqwang/scratch/tongchen/mtt-distillation/wandb/run-20230317_100116-kkpakivs
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run CRC-noise-ipc_15-max_start_epoch_5-syn_steps_30-lr_teacher_1e-05-lr_lr_1e-09-lr_img_10000.0
+wandb: ⭐️ View project at https://wandb.ai/tongchen/DatasetDistillation-CRC
+wandb: 🚀 View run at https://wandb.ai/tongchen/DatasetDistillation-CRC/runs/kkpakivs
+/home/dqwang/scratch/tongchen/mtt-distillation/distill.py:114: UserWarning: Creating a tensor from a list of numpy.ndarrays is extremely slow. Please consider converting the list to a single numpy.ndarray with numpy.array() before converting to a tensor. (Triggered internally at  /opt/conda/conda-bld/pytorch_1646756402876/work/torch/csrc/utils/tensor_new.cpp:210.)
+  label_syn = torch.tensor([np.ones(args.ipc,dtype=np.int_)*i for i in range(num_classes)], dtype=torch.long, requires_grad=False, device=args.device).view(-1) # [0,0,0, 1,1,1, ..., 9,9,9]
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+/home/dqwang/anaconda3/envs/distillation_ct/lib/python3.9/site-packages/torch/functional.py:568: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at  /opt/conda/conda-bld/pytorch_1646756402876/work/aten/src/ATen/native/TensorShape.cpp:2228.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+The model and loaded state dict do not match exactly
+
+unexpected key in source state_dict: head.fc.weight, head.fc.bias
+
+Hyper-parameters: 
+ {'dataset': 'CRC', 'subset': 'imagenette', 'model': 'ResNet18', 'ipc': 15, 'eval_mode': 'S', 'num_eval': 3, 'eval_it': 100, 'epoch_eval_train': 5000, 'Iteration': 5000, 'lr_img': 10000.0, 'lr_lr': 1e-09, 'lr_teacher': 1e-05, 'lr_init': 1e-05, 'batch_real': 4, 'batch_syn': 30, 'batch_train': 4, 'pix_init': 'noise', 'dsa': True, 'dsa_strategy': 'color_crop_cutout_flip_scale_rotate', 'data_path': '{path_to_dataset}', 'buffer_path': 'buffer_long', 'expert_epochs': 3, 'syn_steps': 30, 'max_start_epoch': 5, 'zca': False, 'load_all': False, 'no_aug': False, 'texture': False, 'canvas_size': 2, 'canvas_samples': 1, 'max_files': None, 'max_experts': None, 'force_save': False, 'distributed': True, 'device': 'cuda', 'im_size': [224, 224], 'dc_aug_param': None, 'dsa_param': <utils.ParamDiffAug object at 0x7f2627b6ef70>, '_wandb': {}, 'zca_trans': None}
+Evaluation model pool:  ['ResNet18']
+initialize synthetic data from random noise
+[2023-03-17 10:01:23] training begins
+Expert Dir: buffer_long/CRC/ResNet18
+loading file buffer_long/CRC/ResNet18/replay_buffer_2.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_0.pt
+[2023-03-17 10:02:15] iter = 0000, loss = 1.0002
+loading file buffer_long/CRC/ResNet18/replay_buffer_9.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_3.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_1.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_6.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_5.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_4.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_8.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_7.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_3.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_9.pt
+[2023-03-17 10:05:26] iter = 0010, loss = 0.9741
+loading file buffer_long/CRC/ResNet18/replay_buffer_6.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_7.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_5.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_1.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_2.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_0.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_8.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_4.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_4.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_0.pt
+[2023-03-17 10:08:36] iter = 0020, loss = 0.9371
+loading file buffer_long/CRC/ResNet18/replay_buffer_3.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_2.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_5.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_8.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_7.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_6.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_1.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_9.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_0.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_4.pt
+[2023-03-17 10:11:46] iter = 0030, loss = 0.9573
+loading file buffer_long/CRC/ResNet18/replay_buffer_8.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_6.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_1.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_9.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_5.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_7.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_2.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_3.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_5.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_3.pt
+[2023-03-17 10:14:58] iter = 0040, loss = 0.9413
+loading file buffer_long/CRC/ResNet18/replay_buffer_1.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_6.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_4.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_0.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_8.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_2.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_7.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_9.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_4.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_2.pt
+[2023-03-17 10:18:11] iter = 0050, loss = 0.9077
+loading file buffer_long/CRC/ResNet18/replay_buffer_1.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_3.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_0.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_6.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_8.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_7.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_9.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_5.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_3.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_1.pt
+[2023-03-17 10:21:22] iter = 0060, loss = 0.9169
+loading file buffer_long/CRC/ResNet18/replay_buffer_6.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_2.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_4.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_5.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_9.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_8.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_0.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_7.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_0.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_7.pt
+[2023-03-17 10:24:35] iter = 0070, loss = 0.9140
+loading file buffer_long/CRC/ResNet18/replay_buffer_3.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_9.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_8.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_1.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_2.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_5.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_4.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_6.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_8.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_5.pt
+[2023-03-17 10:27:46] iter = 0080, loss = 0.9030
+loading file buffer_long/CRC/ResNet18/replay_buffer_9.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_4.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_3.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_1.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_6.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_7.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_2.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_0.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_3.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_6.pt
+[2023-03-17 10:30:57] iter = 0090, loss = 0.8899
+loading file buffer_long/CRC/ResNet18/replay_buffer_5.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_2.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_4.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_7.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_0.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_8.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_1.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_9.pt
+loading file buffer_long/CRC/ResNet18/replay_buffer_6.pt
+-------------------------
+Evaluation
+model_train = ResNet18, model_eval = ResNet18, iteration = 100
+DSA augmentation strategy: 
+ color_crop_cutout_flip_scale_rotate
+DSA augmentation parameters: 
+ {'aug_mode': 'S', 'prob_flip': 0.5, 'ratio_scale': 1.2, 'ratio_rotate': 15.0, 'ratio_crop_pad': 0.125, 'ratio_cutout': 0.5, 'ratio_noise': 0.05, 'brightness': 1.0, 'saturation': 2.0, 'contrast': 0.5, 'batchmode': False, 'latestseed': -1}
+Traceback (most recent call last):
+  File "/home/dqwang/scratch/tongchen/mtt-distillation/distill.py", line 510, in <module>
+    main(args)
+  File "/home/dqwang/scratch/tongchen/mtt-distillation/distill.py", line 228, in main
+    _, acc_train, acc_test, auc_test = evaluate_synset(it, it_eval, net_eval, image_syn_eval, label_syn_eval, testloader, args, texture=args.texture)
+  File "/home/dqwang/scratch/tongchen/mtt-distillation/utils.py", line 580, in evaluate_synset
+    net = net.to(args.device)
+AttributeError: 'int' object has no attribute 'to'
+wandb: Waiting for W&B process to finish... (failed 1). Press Control-C to abort syncing.
+wandb: - 10.826 MB of 10.826 MB uploaded (0.000 MB deduped)wandb: \ 10.826 MB of 10.826 MB uploaded (0.000 MB deduped)wandb: | 10.826 MB of 10.826 MB uploaded (0.000 MB deduped)wandb: / 10.826 MB of 10.856 MB uploaded (0.000 MB deduped)wandb: - 10.826 MB of 10.856 MB uploaded (0.000 MB deduped)wandb: \ 10.856 MB of 10.856 MB uploaded (0.000 MB deduped)wandb: | 10.856 MB of 10.856 MB uploaded (0.000 MB deduped)wandb: / 10.856 MB of 10.856 MB uploaded (0.000 MB deduped)wandb: - 10.856 MB of 10.856 MB uploaded (0.000 MB deduped)wandb: \ 10.856 MB of 10.856 MB uploaded (0.000 MB deduped)wandb: | 10.856 MB of 10.856 MB uploaded (0.000 MB deduped)wandb: / 10.856 MB of 10.856 MB uploaded (0.000 MB deduped)wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:   Grand_Loss █▇█▇▇▇██▅█▆█▆▆▅▅▅▆▆▆▄▆▇▅▄▃▄▄▃▄▂▄▄▁▂▃▂▁▁▄
+wandb:     Progress ▁▁▁▁▂▂▂▂▂▃▃▃▃▃▃▄▄▄▄▄▅▅▅▅▅▅▆▆▆▆▆▇▇▇▇▇▇███
+wandb:  Start_Epoch ▃▆▃▅▃▃▆█▁█▆█▅▃▃▅██▆█▃▆▁▅▅▅▆▅▁▃▃▆█▃▃▆▁▁▁▆
+wandb: Synthetic_LR ▁▁▁▁▂▂▂▂▂▂▃▃▃▃▃▃▄▄▄▄▄▅▅▅▅▅▆▆▆▆▆▆▇▇▇▇▇███
+wandb: 
+wandb: Run summary:
+wandb:   Grand_Loss 0.90103
+wandb:     Progress 100
+wandb:  Start_Epoch 3
+wandb: Synthetic_LR 0.00011
+wandb: 
+wandb: Synced CRC-noise-ipc_15-max_start_epoch_5-syn_steps_30-lr_teacher_1e-05-lr_lr_1e-09-lr_img_10000.0: https://wandb.ai/tongchen/DatasetDistillation-CRC/runs/kkpakivs
+wandb: Synced 6 W&B file(s), 2 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20230317_100116-kkpakivs/logs
+
