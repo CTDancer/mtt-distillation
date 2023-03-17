@@ -196,11 +196,7 @@ def main(args):
 
     best_acc = {m: 0 for m in model_eval_pool}
 
-    # best_std_acc = {m: 0 for m in model_eval_pool}
-    
-    best_auc = {m: 0 for m in model_eval_pool}
-    
-    best_std_auc = {m: 0 for m in model_eval_pool}
+    best_std = {m: 0 for m in model_eval_pool}
 
     for it in range(0, args.Iteration+1):
         save_this_it = False
@@ -229,36 +225,31 @@ def main(args):
                     image_syn_eval, label_syn_eval = copy.deepcopy(image_save.detach()), copy.deepcopy(eval_labs.detach()) # avoid any unaware modification
 
                     args.lr_net = syn_lr.item()
-                    _, acc_train, acc_test, auc_test = evaluate_synset(it_eval, net_eval, image_syn_eval, label_syn_eval, dst_test, testloader, args, texture=args.texture)
+                    _, acc_train, acc_test, auc_test = evaluate_synset(it, it_eval, net_eval, image_syn_eval, label_syn_eval, testloader, args, texture=args.texture)
                     accs_test.append(acc_test)
                     accs_train.append(acc_train)
                     aucs_test.append(auc_test)
                 accs_test = np.array(accs_test)
                 accs_train = np.array(accs_train)
                 aucs_test = np.array(aucs_test)
+
                 acc_test_mean = np.mean(accs_test)
                 acc_test_std = np.std(accs_test)
                 auc_test_mean = np.mean(aucs_test)
                 auc_test_std = np.std(aucs_test)
-                # if acc_test_mean > best_acc[model_eval]:
-                #     best_acc[model_eval] = acc_test_mean
-                #     best_std_acc[model_eval] = acc_test_std
-                #     save_this_it = True
-                if acc_test_mean > best_auc[model_eval]:
-                    best_auc[model_eval] = auc_test_mean
-                    best_std_auc[model_eval] = auc_test_std
+                if auc_test_mean > best_acc[model_eval]:
+                    best_acc[model_eval] = auc_test_mean
+                    best_std[model_eval] = auc_test_std
                     save_this_it = True
-                # print('Evaluate ACC %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(accs_test), model_eval, acc_test_mean, acc_test_std))
-                print('Evaluate AUC %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(aucs_test), model_eval, auc_test_mean, auc_test_std))
+                print('Evaluate %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(accs_test), model_eval, auc_test_mean, auc_test_std))
                 wandb.log({'Accuracy/{}'.format(model_eval): acc_test_mean}, step=it)
                 # wandb.log({'Max_Accuracy/{}'.format(model_eval): best_acc[model_eval]}, step=it)
-                wandb.log({'ACC_Std/{}'.format(model_eval): acc_test_std}, step=it)
-                # wandb.log({'ACC_Max_Std/{}'.format(model_eval): best_std_acc[model_eval]}, step=it)
-                
-                wandb.log({'AUC/{}'.format(model_eval): auc_test_mean}, step=it)
-                wandb.log({'Max_AUC/{}'.format(model_eval): best_auc[model_eval]}, step=it)
-                wandb.log({'AUC_Std/{}'.format(model_eval): auc_test_std}, step=it)
-                wandb.log({'AUC_Max_Std/{}'.format(model_eval): best_std_auc[model_eval]}, step=it)
+                wandb.log({'Std_Acc/{}'.format(model_eval): acc_test_std}, step=it)
+                # wandb.log({'Max_Std/{}'.format(model_eval): best_std[model_eval]}, step=it)
+                wandb.log({'Auc/{}'.format(model_eval): auc_test_mean}, step=it)
+                wandb.log({'Max_Auc/{}'.format(model_eval): best_acc[model_eval]}, step=it)
+                wandb.log({'Std_Auc/{}'.format(model_eval): auc_test_std}, step=it)
+                wandb.log({'Max_Std_Auc/{}'.format(model_eval): best_std[model_eval]}, step=it)
 
 
         # if it in eval_it_pool and (save_this_it or it % 1000 == 0):
