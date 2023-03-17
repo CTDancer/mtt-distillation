@@ -15,8 +15,67 @@ from torchvision import datasets, transforms
 from scipy.ndimage.interpolation import rotate as scipyrotate
 from networks import MLP, ConvNet, LeNet, AlexNet, VGG11BN, VGG11, ResNet18, ResNet18BN_AP, ResNet18_AP
 from sklearn.metrics import roc_auc_score
+from mmcv.cnn.resnet import ResNet
+from collections import defaultdict
 import copy
 import pdb
+
+class GlobalAveragePooling(nn.Module):
+    """Global Average Pooling neck.
+
+    Note that we use `view` to remove extra channel after pooling. We do not
+    use `squeeze` as it will also remove the batch dimension when the tensor
+    has a batch dimension of size 1, which can lead to unexpected errors.
+
+    Args:
+        dim (int): Dimensions of each sample channel, can be one of {1, 2, 3}.
+            Default: 2
+    """
+
+    def __init__(self, dim=2):
+        super(GlobalAveragePooling, self).__init__()
+        assert dim in [1, 2, 3], 'GlobalAveragePooling dim only support ' \
+            f'{1, 2, 3}, get {dim} instead.'
+        if dim == 1:
+            self.gap = nn.AdaptiveAvgPool1d(1)
+        elif dim == 2:
+            self.gap = nn.AdaptiveAvgPool2d((1, 1))
+        else:
+            self.gap = nn.AdaptiveAvgPool3d((1, 1, 1))
+
+    def init_weights(self):
+        pass
+
+    def forward(self, inputs):
+        if isinstance(inputs, tuple):
+            outs = tuple([self.gap(x) for x in inputs])
+            outs = tuple(
+                [out.view(x.size(0), -1) for out, x in zip(outs, inputs)])
+        elif isinstance(inputs, torch.Tensor):
+            outs = self.gap(inputs)
+            outs = outs.view(inputs.size(0), -1)
+        else:
+            raise TypeError('neck inputs should be tuple or torch.tensor')
+        return outs
+
+class MyResNet18(nn.Module):
+    def __init__(self, ck_path=None):
+        super(MyResNet18, self).__init__()
+        self.resnet = ResNet(depth=18, out_indices=(3, ), frozen_stages=3)
+        if ck_path is not None:
+            self.resnet.init_weights(ck_path)
+        self.classifier = nn.Linear(512, 2, bias=True)
+        self.pool = GlobalAveragePooling()
+
+    def forward(self, x):
+        # 3*224*224
+        out = self.resnet(x) # 64/128/256/512*7*7
+        # out = F.avg_pool2d(out, kernel_size=7) # 512*1
+        out = self.pool(out)
+        out = out.view(out.size(0), -1)
+        out = self.classifier(out)
+        out = F.softmax(out, dim=-1)
+        return out
 
 class Config:
     imagenette = [0, 217, 482, 491, 497, 566, 569, 571, 574, 701]
@@ -261,7 +320,8 @@ def get_network(model, channel, num_classes, im_size=(32, 32), dist=True):
     elif model == 'VGG11BN':
         net = VGG11BN(channel=channel, num_classes=num_classes)
     elif model == 'ResNet18':
-        net = ResNet18(channel=channel, num_classes=num_classes)
+        # net = ResNet18(channel=channel, num_classes=num_classes)
+        net = MyResNet18(ck_path='./r18_imgpre.pth')
     elif model == 'ResNet18BN_AP':
         net = ResNet18BN_AP(channel=channel, num_classes=num_classes)
     elif model == 'ResNet18_AP':

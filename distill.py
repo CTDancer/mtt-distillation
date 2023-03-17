@@ -1,5 +1,5 @@
 import os
-import argparseutils
+import argparse
 import numpy as np
 import torch
 import torch.nn as nn
@@ -12,6 +12,8 @@ import copy
 import random
 from reparam_module import ReparamModule
 import pdb
+from torchvision import datasets, transforms
+from PIL import Image
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -32,7 +34,7 @@ def main(args):
     args.dsa = True if args.dsa == 'True' else False
     args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    eval_it_pool = np.arange(0, args.Iteration + 1, args.eval_it).tolist()
+    eval_it_pool = np.arange(0, args.Iteration + 1, args.eval_it).tolist()[1:]
     channel, im_size, num_classes, dst_train, dst_test, testloader = get_CRC(args.dataset, args.data_path, args.batch_real, args=args)
     model_eval_pool = get_eval_pool(args.eval_mode, args.model, args.model)
 
@@ -59,8 +61,9 @@ def main(args):
         zca_trans = None
 
     wandb.init(sync_tensorboard=False,
-               project="DatasetDistillation",
-               job_type="CleanRepo",
+               project="DatasetDistillation-CRC",
+               entity="tongchen",
+               name='CRC-'+args.pix_init+'-ipc_{}-max_start_epoch_{}-syn_steps_{}-lr_teacher_{}-lr_lr_{}-lr_img_{}'.format(args.ipc, args.max_start_epoch, args.syn_steps, args.lr_teacher, args.lr_lr, args.lr_img),
                config=args,
                )
 
@@ -82,31 +85,29 @@ def main(args):
     print('Evaluation model pool: ', model_eval_pool)
 
     ''' organize the real dataset '''
-    images_all = []
-    labels_all = []
-    indices_class = [[] for c in range(num_classes)]
-    class_map = {x:x for x in range(num_classes)}
-    print("BUILDING DATASET")
-    for i in tqdm(range(len(dst_train))):
-        sample = dst_train[i]
-        images_all.append(torch.unsqueeze(sample[0], dim=0))
-        labels_all.append(class_map[torch.tensor(sample[1]).item()])
-
-    for i, lab in tqdm(enumerate(labels_all)):
-        indices_class[lab].append(i)
-    images_all = torch.cat(images_all, dim=0).to("cpu")
-    labels_all = torch.tensor(labels_all, dtype=torch.long, device="cpu")
-
-    for c in range(num_classes):
-        print('class c = %d: %d real images'%(c, len(indices_class[c])))
-
-    for ch in range(channel):
-        print('real images channel %d, mean = %.4f, std = %.4f'%(ch, torch.mean(images_all[:, ch]), torch.std(images_all[:, ch])))
-
-
     def get_images(c, n):  # get random n images from class c
-        idx_shuffle = np.random.permutation(indices_class[c])[:n]
-        return images_all[idx_shuffle]
+        train_pth = '../datasets/CRC/CRC_DX_train'
+        subfolder_pth = os.path.join(train_pth, os.listdir(train_pth)[c])
+        file_list = os.listdir(subfolder_pth) # get the list of file names in the folder
+        selected_files = random.sample(file_list, n)
+        
+        mean = [0.485, 0.456, 0.406]
+        std = [0.229, 0.224, 0.225]
+        if args.zca:
+            transform = transforms.Compose([transforms.ToTensor()])
+        else:
+            transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+        
+        images = []
+        for image_name in selected_files:
+            image_path = os.path.join(subfolder_pth, image_name)
+            img = Image.open(image_path)
+            image = transform(img)
+            images.append(torch.unsqueeze(image, dim=0))
+        
+        images = torch.cat(images, dim=0).to("cpu")
+        
+        return images
 
 
     ''' initialize the synthetic data '''
@@ -117,6 +118,19 @@ def main(args):
     else:
         image_syn = torch.randn(size=(num_classes * args.ipc, channel, im_size[0], im_size[1]), dtype=torch.float)
 
+    # data augmentation
+    transform = transforms.Compose([
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomRotation(degrees=10),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2)
+    ])
+    
+    augmented_images = []
+    for i in range(image_syn.size(0)): 
+        augmented_images.append(transform(image_syn[i]))
+        
+    image_syn = torch.stack(augmented_images)
+    
     syn_lr = torch.tensor(args.lr_teacher).to(args.device)
 
     if args.pix_init == 'real':
@@ -137,7 +151,7 @@ def main(args):
     ''' training '''
     image_syn = image_syn.detach().to(args.device).requires_grad_(True)
     syn_lr = syn_lr.detach().to(args.device).requires_grad_(True)
-    optimizer_img = torch.optim.SGD([image_syn], lr=args.lr_img, momentum=0.5)
+    optimizer_img = torch.optim.SGD([image_syn], lr=args.lr_img, momentum=0.5)  # 之后将momentum改成0.9试试
     optimizer_lr = torch.optim.SGD([syn_lr], lr=args.lr_lr, momentum=0.5)
     optimizer_img.zero_grad()
 
@@ -182,7 +196,7 @@ def main(args):
 
     best_acc = {m: 0 for m in model_eval_pool}
 
-    best_std_acc = {m: 0 for m in model_eval_pool}
+    # best_std_acc = {m: 0 for m in model_eval_pool}
     
     best_auc = {m: 0 for m in model_eval_pool}
     
@@ -226,20 +240,20 @@ def main(args):
                 acc_test_std = np.std(accs_test)
                 auc_test_mean = np.mean(aucs_test)
                 auc_test_std = np.std(aucs_test)
-                if acc_test_mean > best_acc[model_eval]:
-                    best_acc[model_eval] = acc_test_mean
-                    best_std_acc[model_eval] = acc_test_std
-                    save_this_it = True
+                # if acc_test_mean > best_acc[model_eval]:
+                #     best_acc[model_eval] = acc_test_mean
+                #     best_std_acc[model_eval] = acc_test_std
+                #     save_this_it = True
                 if acc_test_mean > best_auc[model_eval]:
                     best_auc[model_eval] = auc_test_mean
                     best_std_auc[model_eval] = auc_test_std
                     save_this_it = True
-                print('Evaluate ACC %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(accs_test), model_eval, acc_test_mean, acc_test_std))
+                # print('Evaluate ACC %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(accs_test), model_eval, acc_test_mean, acc_test_std))
                 print('Evaluate AUC %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(aucs_test), model_eval, auc_test_mean, auc_test_std))
                 wandb.log({'Accuracy/{}'.format(model_eval): acc_test_mean}, step=it)
-                wandb.log({'Max_Accuracy/{}'.format(model_eval): best_acc[model_eval]}, step=it)
+                # wandb.log({'Max_Accuracy/{}'.format(model_eval): best_acc[model_eval]}, step=it)
                 wandb.log({'ACC_Std/{}'.format(model_eval): acc_test_std}, step=it)
-                wandb.log({'ACC_Max_Std/{}'.format(model_eval): best_std_acc[model_eval]}, step=it)
+                # wandb.log({'ACC_Max_Std/{}'.format(model_eval): best_std_acc[model_eval]}, step=it)
                 
                 wandb.log({'AUC/{}'.format(model_eval): auc_test_mean}, step=it)
                 wandb.log({'Max_AUC/{}'.format(model_eval): best_auc[model_eval]}, step=it)
@@ -247,7 +261,8 @@ def main(args):
                 wandb.log({'AUC_Max_Std/{}'.format(model_eval): best_std_auc[model_eval]}, step=it)
 
 
-        if it in eval_it_pool and (save_this_it or it % 1000 == 0):
+        # if it in eval_it_pool and (save_this_it or it % 1000 == 0):
+        if(save_this_it or it % 1000 == 0):
             with torch.no_grad():
                 image_save = image_syn.cuda()
 
@@ -262,6 +277,7 @@ def main(args):
                 if save_this_it:
                     torch.save(image_save.cpu(), os.path.join(save_dir, "images_best.pt".format(it)))
                     torch.save(label_syn.cpu(), os.path.join(save_dir, "labels_best.pt".format(it)))
+                    torch.save(syn_lr.item(), os.path.join(save_dir, "lr_best.pt".format(it)))
 
                 wandb.log({"Pixels": wandb.Histogram(torch.nan_to_num(image_syn.detach().cpu()))}, step=it)
 
@@ -319,7 +335,7 @@ def main(args):
         if args.distributed:
             student_net = torch.nn.DataParallel(student_net)
 
-        student_net.train()
+        # student_net.train()
 
         num_params = sum([np.prod(p.size()) for p in (student_net.parameters())])
 
@@ -384,20 +400,23 @@ def main(args):
             else:
                 forward_params = student_params[-1]
             
-            pdb.set_trace()
             x = student_net(x, flat_param=forward_params)
             ce_loss = criterion(x, this_y)
 
             grad = torch.autograd.grad(ce_loss, student_params[-1], create_graph=True)[0]
 
-            student_params.append(student_params[-1] - syn_lr * grad)
+            tmp = [student_params[-1][:-1026]]
+            tmp.append(student_params[-1][-1026:] - syn_lr * grad[-1026:])
+            tmp = torch.cat(tmp, 0)
+            student_params.append(tmp)
+            # student_params.append(student_params[-1] - syn_lr * grad)
 
 
         param_loss = torch.tensor(0.0).to(args.device)
         param_dist = torch.tensor(0.0).to(args.device)
 
-        param_loss += torch.nn.functional.mse_loss(student_params[-1], target_params, reduction="sum")
-        param_dist += torch.nn.functional.mse_loss(starting_params, target_params, reduction="sum")
+        param_loss += torch.nn.functional.mse_loss(student_params[-1][-1026:], target_params[-1026:], reduction="sum")  # 可以换损失函数
+        param_dist += torch.nn.functional.mse_loss(starting_params[-1026:], target_params[-1026:], reduction="sum")
 
         param_loss_list.append(param_loss)
         param_dist_list.append(param_dist)
