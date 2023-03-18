@@ -15,6 +15,7 @@ import pdb
 from torchvision import datasets, transforms
 from PIL import Image
 
+
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -64,6 +65,7 @@ def main(args):
                project="DatasetDistillation-CRC",
                entity="tongchen",
                name='CRC-'+args.pix_init+'-ipc_{}-max_start_epoch_{}-syn_steps_{}-lr_teacher_{}-lr_lr_{}-lr_img_{}'.format(args.ipc, args.max_start_epoch, args.syn_steps, args.lr_teacher, args.lr_lr, args.lr_img),
+            #    name='test',
                config=args,
                )
 
@@ -130,7 +132,7 @@ def main(args):
         augmented_images.append(transform(image_syn[i]))
         
     image_syn = torch.stack(augmented_images)
-    
+
     syn_lr = torch.tensor(args.lr_teacher).to(args.device)
 
     if args.pix_init == 'real':
@@ -151,7 +153,7 @@ def main(args):
     ''' training '''
     image_syn = image_syn.detach().to(args.device).requires_grad_(True)
     syn_lr = syn_lr.detach().to(args.device).requires_grad_(True)
-    optimizer_img = torch.optim.SGD([image_syn], lr=args.lr_img, momentum=0.5)  # 之后将momentum改成0.9试试
+    optimizer_img = torch.optim.SGD([image_syn], lr=args.lr_img, momentum=0.5)
     optimizer_lr = torch.optim.SGD([syn_lr], lr=args.lr_lr, momentum=0.5)
     optimizer_img.zero_grad()
 
@@ -225,7 +227,7 @@ def main(args):
                     image_syn_eval, label_syn_eval = copy.deepcopy(image_save.detach()), copy.deepcopy(eval_labs.detach()) # avoid any unaware modification
 
                     args.lr_net = syn_lr.item()
-                    _, acc_train, acc_test, auc_test = evaluate_synset(it_eval, net_eval, image_syn_eval, label_syn_eval, dst_test, testloader, args, texture=args.texture)
+                    _, acc_train, acc_test, auc_test = evaluate_synset(it, it_eval, net_eval, image_syn_eval, label_syn_eval, dst_test, testloader, args, texture=args.texture)
                     accs_test.append(acc_test)
                     accs_train.append(acc_train)
                     aucs_test.append(auc_test)
@@ -253,7 +255,7 @@ def main(args):
 
 
         # if it in eval_it_pool and (save_this_it or it % 1000 == 0):
-        if(save_this_it or it % 1000 == 0):
+        if (save_this_it or it % 1000 == 0):
             with torch.no_grad():
                 image_save = image_syn.cuda()
 
@@ -390,23 +392,21 @@ def main(args):
                 forward_params = student_params[-1].unsqueeze(0).expand(torch.cuda.device_count(), -1)
             else:
                 forward_params = student_params[-1]
-            
             x = student_net(x, flat_param=forward_params)
             ce_loss = criterion(x, this_y)
 
             grad = torch.autograd.grad(ce_loss, student_params[-1], create_graph=True)[0]
-
+            
             tmp = [student_params[-1][:-1026]]
             tmp.append(student_params[-1][-1026:] - syn_lr * grad[-1026:])
             tmp = torch.cat(tmp, 0)
             student_params.append(tmp)
-            # student_params.append(student_params[-1] - syn_lr * grad)
 
 
         param_loss = torch.tensor(0.0).to(args.device)
         param_dist = torch.tensor(0.0).to(args.device)
 
-        param_loss += torch.nn.functional.mse_loss(student_params[-1][-1026:], target_params[-1026:], reduction="sum")  # 可以换损失函数
+        param_loss += torch.nn.functional.mse_loss(student_params[-1][-1026:], target_params[-1026:], reduction="sum")
         param_dist += torch.nn.functional.mse_loss(starting_params[-1026:], target_params[-1026:], reduction="sum")
 
         param_loss_list.append(param_loss)
@@ -502,9 +502,8 @@ if __name__ == '__main__':
     parser.add_argument('--max_experts', type=int, default=None, help='number of experts to read per file (leave as None unless doing ablations)')
 
     parser.add_argument('--force_save', action='store_true', help='this will save images for 50ipc')
-    
-    parser.add_argument('--distributed', action='store_true', help='distill on multiple devices')
 
     args = parser.parse_args()
 
     main(args)
+

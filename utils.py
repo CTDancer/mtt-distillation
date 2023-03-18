@@ -462,13 +462,38 @@ def epoch(mode, dataloader, dataset, batch_size, net, optimizer, criterion, args
             # batch_filenames = [x for _,x in sorted(zip(batch_indices, batch_filenames))]
             
             # pdb.set_trace()
-            for name in batch_filenames:    # name = ../datasets/CRC/CRC_DX_train/MSS/blk-YNYAHFKPQAIM-TCGA-F5-6465-01Z-00-DX1.png
+            # for name in batch_filenames:    # name = ../datasets/CRC/CRC_DX_train/MSS/blk-YNYAHFKPQAIM-TCGA-F5-6465-01Z-00-DX1.png
+            #     if mode == 'train':
+            #         if args.dataset == 'CRC':
+            #             if name[29:32] == 'MSS':
+            #                 slide_ids.append(name[31]+name[50:62]+name[72])
+            #             elif name[29:32] == 'MSI':
+            #                 slide_ids.append(name[31]+name[53:65]+name[75])
+            #         if args.dataset == 'CRC_small':
+            #             if name[35:38] == 'MSS':
+            #                 slide_ids.append(name[37]+name[56:68]+name[78])
+            #             elif name[35:38] == 'MSI':
+            #                 slide_ids.append(name[37]+name[59:71]+name[81])
+            #     elif mode == 'test':
+            #         if args.dataset == 'CRC':
+            #             if name[28:31] == 'MSS':
+            #                 slide_ids.append(name[30]+name[49:61]+name[71])
+            #             elif name[28:31] == 'MSI':
+            #                 slide_ids.append(name[30]+name[52:64]+name[74])
+            #         if args.dataset == 'CRC_small':
+            #             if name[34:37] == 'MSS':
+            #                 slide_ids.append(name[36]+name[55:67]+name[77])
+            #             elif name[34:37] == 'MSI':
+            #                 slide_ids.append(name[36]+name[58:70]+name[80])
+
+            # for leviathan
+            for name in batch_filenames:    # name = /home/dqwang/CRC_DX_test/MSS/blk-YYYVCAPMQNDQ-TCGA-NH-A50T-01Z-00-DX1.png
                 if mode == 'train':
                     if args.dataset == 'CRC':
-                        if name[29:32] == 'MSS':
-                            slide_ids.append(name[31]+name[50:62]+name[72])
-                        elif name[29:32] == 'MSI':
-                            slide_ids.append(name[31]+name[53:65]+name[75])
+                        if name[26:29] == 'MSS':
+                            slide_ids.append(name[28]+name[47:59]+name[69])
+                        elif name[26:29] == 'MSI':
+                            slide_ids.append(name[28]+name[50:62]+name[72])
                     if args.dataset == 'CRC_small':
                         if name[35:38] == 'MSS':
                             slide_ids.append(name[37]+name[56:68]+name[78])
@@ -476,10 +501,10 @@ def epoch(mode, dataloader, dataset, batch_size, net, optimizer, criterion, args
                             slide_ids.append(name[37]+name[59:71]+name[81])
                 elif mode == 'test':
                     if args.dataset == 'CRC':
-                        if name[28:31] == 'MSS':
-                            slide_ids.append(name[30]+name[49:61]+name[71])
-                        elif name[28:31] == 'MSI':
-                            slide_ids.append(name[30]+name[52:64]+name[74])
+                        if name[25:28] == 'MSS':
+                            slide_ids.append(name[27]+name[46:58]+name[68])
+                        elif name[25:28] == 'MSI':
+                            slide_ids.append(name[27]+name[49:61]+name[71])
                     if args.dataset == 'CRC_small':
                         if name[34:37] == 'MSS':
                             slide_ids.append(name[36]+name[55:67]+name[77])
@@ -576,7 +601,7 @@ def epoch_syn(mode, dataloader, net, optimizer, criterion, args, aug, texture=Fa
 
     return loss_avg, acc_avg
 
-def evaluate_synset(it_eval, net, images_train, labels_train, testset, testloader, args, return_loss=False, texture=False):
+def evaluate_synset(it, it_eval, net, images_train, labels_train, testset, testloader, args, return_loss=False, texture=False):
     net = net.to(args.device)
     images_train = images_train.to(args.device)
     labels_train = labels_train.to(args.device)
