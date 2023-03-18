@@ -1,2 +1,3 @@
 #!/bin/bash
-CUDA_VISIBLE_DEVICES=0,1,2,3 python distill.py --dataset=CRC_small --model=ResNet18 --ipc=1 --syn_steps=20 --batch_train=16 --batch_real=16 --expert_epochs=3 --max_start_epoch=20 --lr_img=1000 --lr_lr=1e-05 --lr_teacher=0.01 --buffer_path={path_to_buffer_storage} --data_path={path_to_dataset} --distributed
+export WANDB_API_KEY=b7b6ecceb6854bd12f58809f18264f979509d13b
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,7,6 python distill.py --dataset=CRC --model=ResNet18 --ipc=15 --pix_init=noise --num_eval=3 --epoch_eval_train=5000 --syn_steps=30 --batch_train=4 --batch_real=4 --expert_epochs=3 --max_start_epoch=5 --lr_init=1e-5 --lr_img=100000 --lr_lr=1e-09 --lr_teacher=0.00001 --buffer_path=buffer_long --data_path={path_to_dataset}
