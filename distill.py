@@ -115,10 +115,19 @@ def main(args):
     ''' initialize the synthetic data '''
     label_syn = torch.tensor([np.ones(args.ipc,dtype=np.int_)*i for i in range(num_classes)], dtype=torch.long, requires_grad=False, device=args.device).view(-1) # [0,0,0, 1,1,1, ..., 9,9,9]
 
-    if args.texture:
-        image_syn = torch.randn(size=(num_classes * args.ipc, channel, im_size[0]*args.canvas_size, im_size[1]*args.canvas_size), dtype=torch.float)
-    else:
-        image_syn = torch.randn(size=(num_classes * args.ipc, channel, im_size[0], im_size[1]), dtype=torch.float)
+    if args.pix_init == 'noise':
+        if args.texture:
+            image_syn = torch.randn(size=(num_classes * args.ipc, channel, im_size[0]*args.canvas_size, im_size[1]*args.canvas_size), dtype=torch.float)
+        else:
+            image_syn = torch.randn(size=(num_classes * args.ipc, channel, im_size[0], im_size[1]), dtype=torch.float)
+
+    elif args.pix_init == 'mean':
+        # Generate synthetic images with initial mean and std
+        if args.texture:
+            image_syn = [torch.randn(channel, im_size[0]*args.canvas_size, im_size[1]*args.canvas_size) * torch.tensor([0.229, 0.224, 0.225]).view(channel, 1, 1) + torch.tensor([0.485, 0.456, 0.406]).view(channel, 1, 1) for _ in range(num_classes*args.ipc)]
+        else:
+            image_syn = [torch.randn(channel, im_size[0], im_size[1]) * torch.tensor([0.229, 0.224, 0.225]).view(channel, 1, 1) + torch.tensor([0.485, 0.456, 0.406]).view(channel, 1, 1) for _ in range(num_classes*args.ipc)]
+        image_syn = torch.stack(image_syn)
 
     # data augmentation
     transform = transforms.Compose([
@@ -471,8 +480,9 @@ if __name__ == '__main__':
     parser.add_argument('--batch_syn', type=int, default=None, help='should only use this if you run out of VRAM')
     parser.add_argument('--batch_train', type=int, default=256, help='batch size for training networks')
 
-    parser.add_argument('--pix_init', type=str, default='real', choices=["noise", "real"],
-                        help='noise/real: initialize synthetic images from random noise or randomly sampled real images.')
+    parser.add_argument('--pix_init', type=str, default='real', choices=["noise", "real", "mean"],
+                        help='noise/real/mean: initialize synthetic images from random noise or randomly sampled real images or from the mean and std of CRC.')
+
 
     parser.add_argument('--dsa', type=str, default='True', choices=['True', 'False'],
                         help='whether to use differentiable Siamese augmentation.')
