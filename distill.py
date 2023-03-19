@@ -6,15 +6,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.utils
 from tqdm import tqdm
-from utils import get_dataset, get_network, get_eval_pool, evaluate_synset, get_time, DiffAugment, ParamDiffAug, get_CRC
+from utils import get_dataset, get_network, get_eval_pool, evaluate_synset, get_time, DiffAugment, ParamDiffAug
 import wandb
 import copy
 import random
-from reparam_module import ReparamModule
-import pdb
 from torchvision import datasets, transforms
 from PIL import Image
-
+from reparam_module import ReparamModule
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -36,7 +34,7 @@ def main(args):
     args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     eval_it_pool = np.arange(0, args.Iteration + 1, args.eval_it).tolist()[1:]
-    channel, im_size, num_classes, dst_train, dst_test, testloader = get_CRC(args.dataset, args.data_path, args.batch_real, args=args)
+    channel, im_size, num_classes, class_names, mean, std, dst_train, dst_test, testloader, loader_train_dict, class_map, class_map_inv = get_dataset(args.dataset, args.data_path, args.batch_real, args.subset, args=args)
     model_eval_pool = get_eval_pool(args.eval_mode, args.model, args.model)
 
     im_res = im_size[0]
@@ -65,7 +63,7 @@ def main(args):
                project="DatasetDistillation-CRC",
                entity="tongchen",
                name='CRC-'+args.pix_init+'-ipc_{}-max_start_epoch_{}-syn_steps_{}-data_aug_{}-lr_teacher_{}-lr_lr_{}-lr_img_{}'.format(args.ipc, args.max_start_epoch, args.syn_steps, args.data_aug, args.lr_teacher, args.lr_lr, args.lr_img),
-            #    name='test',
+                # name='test',
                config=args,
                )
 
@@ -88,7 +86,7 @@ def main(args):
 
     ''' organize the real dataset '''
     def get_images(c, n):  # get random n images from class c
-        train_pth = '../datasets/CRC/CRC_DX_train'
+        train_pth = '/home/dqwang/CRC_DX_train'
         subfolder_pth = os.path.join(train_pth, os.listdir(train_pth)[c])
         file_list = os.listdir(subfolder_pth) # get the list of file names in the folder
         selected_files = random.sample(file_list, n)
@@ -237,7 +235,7 @@ def main(args):
                     image_syn_eval, label_syn_eval = copy.deepcopy(image_save.detach()), copy.deepcopy(eval_labs.detach()) # avoid any unaware modification
 
                     args.lr_net = syn_lr.item()
-                    _, acc_train, acc_test, auc_test = evaluate_synset(it, it_eval, net_eval, image_syn_eval, label_syn_eval, dst_test, testloader, args, texture=args.texture)
+                    _, acc_train, acc_test, auc_test = evaluate_synset(it, it_eval, net_eval, image_syn_eval, label_syn_eval, testloader, args, texture=args.texture)
                     accs_test.append(acc_test)
                     accs_train.append(acc_train)
                     aucs_test.append(auc_test)
@@ -484,7 +482,6 @@ if __name__ == '__main__':
     parser.add_argument('--pix_init', type=str, default='real', choices=["noise", "real", "mean"],
                         help='noise/real/mean: initialize synthetic images from random noise or randomly sampled real images or from the mean and std of CRC.')
 
-
     parser.add_argument('--dsa', type=str, default='True', choices=['True', 'False'],
                         help='whether to use differentiable Siamese augmentation.')
 
@@ -513,7 +510,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_experts', type=int, default=None, help='number of experts to read per file (leave as None unless doing ablations)')
 
     parser.add_argument('--force_save', action='store_true', help='this will save images for 50ipc')
-
+    
     parser.add_argument('--data_aug', action='store_true', help='this will use data augmentation after initializing synthetic images')
 
     args = parser.parse_args()
