@@ -64,7 +64,7 @@ def main(args):
     wandb.init(sync_tensorboard=False,
                project="DatasetDistillation-CRC",
                entity="tongchen",
-               name='CRC-'+args.pix_init+'-ipc_{}-max_start_epoch_{}-syn_steps_{}-lr_teacher_{}-lr_lr_{}-lr_img_{}'.format(args.ipc, args.max_start_epoch, args.syn_steps, args.lr_teacher, args.lr_lr, args.lr_img),
+               name='CRC-'+args.pix_init+'-ipc_{}-max_start_epoch_{}-syn_steps_{}-data_aug_{}-lr_teacher_{}-lr_lr_{}-lr_img_{}'.format(args.ipc, args.max_start_epoch, args.syn_steps, args.data_aug, args.lr_teacher, args.lr_lr, args.lr_img),
             #    name='test',
                config=args,
                )
@@ -130,17 +130,18 @@ def main(args):
         image_syn = torch.stack(image_syn)
 
     # data augmentation
-    transform = transforms.Compose([
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomRotation(degrees=10),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2)
-    ])
-    
-    augmented_images = []
-    for i in range(image_syn.size(0)): 
-        augmented_images.append(transform(image_syn[i]))
+    if args.data_aug:
+        transform = transforms.Compose([
+            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomRotation(degrees=10),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2)
+        ])
         
-    image_syn = torch.stack(augmented_images)
+        augmented_images = []
+        for i in range(image_syn.size(0)): 
+            augmented_images.append(transform(image_syn[i]))
+            
+        image_syn = torch.stack(augmented_images)
 
     syn_lr = torch.tensor(args.lr_teacher).to(args.device)
 
@@ -512,6 +513,8 @@ if __name__ == '__main__':
     parser.add_argument('--max_experts', type=int, default=None, help='number of experts to read per file (leave as None unless doing ablations)')
 
     parser.add_argument('--force_save', action='store_true', help='this will save images for 50ipc')
+
+    parser.add_argument('--data_aug', action='store_true', help='this will use data augmentation after initializing synthetic images')
 
     args = parser.parse_args()
 
