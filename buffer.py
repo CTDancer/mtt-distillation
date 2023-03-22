@@ -3,23 +3,20 @@ import argparse
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-from utils import get_dataset, get_network, get_daparam,\
-    TensorDataset, epoch, ParamDiffAug, get_CRC
+from utils import get_dataset, get_network, get_daparam, TensorDataset, epoch, ParamDiffAug
 import copy
-import pdb
+import wandb
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def main(args):
+
     args.dsa = True if args.dsa == 'True' else False
     args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
     args.dsa_param = ParamDiffAug()
 
-    if args.dataset != 'CRC' and args.dataset != 'CRC_small':
-        channel, im_size, num_classes, class_names, mean, std, dst_train, dst_test, testloader, loader_train_dict, class_map, class_map_inv = get_dataset(args.dataset, args.data_path, args.batch_real, args.subset, args=args)
-    elif args.dataset == 'CRC' or args.dataset == 'CRC_small':
-        channel, im_size, num_classes, dst_train, dst_test, testloader = get_CRC(args.dataset, args.data_path, args.batch_real, args) 
+    channel, im_size, num_classes, class_names, mean, std, dst_train, dst_test, testloader, loader_train_dict, class_map, class_map_inv = get_dataset(args.dataset, args.data_path, args.batch_real, args.subset, args=args)
 
     # print('\n================== Exp %d ==================\n '%exp)
     print('Hyper-parameters: \n', args.__dict__)
@@ -35,14 +32,37 @@ def main(args):
 
 
     ''' organize the real dataset '''
+    # images_all = []
+    # labels_all = []
+    # indices_class = [[] for c in range(num_classes)]
+    # print("BUILDING DATASET")
+    # cnt = 0
+    # for i in tqdm(range(len(dst_train))):
+    #     cnt += 1
+    #     if cnt >= 1000:
+    #         break
+    #     sample = dst_train[i]
+    #     images_all.append(torch.unsqueeze(sample[0], dim=0))
+    #     labels_all.append(class_map[torch.tensor(sample[1]).item()])
 
-    print("BUILDING DATASET")
+    # for i, lab in tqdm(enumerate(labels_all)):
+    #     indices_class[lab].append(i)
+    # images_all = torch.cat(images_all, dim=0).to("cpu")
+    # labels_all = torch.tensor(labels_all, dtype=torch.long, device="cpu")
+
+    # for c in range(num_classes):
+    #     print('class c = %d: %d real images'%(c, len(indices_class[c])))
+
+    # for ch in range(channel):
+    #     print('real images channel %d, mean = %.4f, std = %.4f'%(ch, torch.mean(images_all[:, ch]), torch.std(images_all[:, ch])))
+
     criterion = nn.CrossEntropyLoss().to(args.device)
 
     trajectories = []
 
-    trainloader = torch.utils.data.DataLoader(dst_train, batch_size=args.batch_train, shuffle=True, num_workers=0)
-        
+    # dst_train = TensorDataset(copy.deepcopy(images_all.detach()), copy.deepcopy(labels_all.detach()))
+    trainloader = torch.utils.data.DataLoader(dst_train, batch_size=args.batch_train, shuffle=True, num_workers=2)
+
     ''' set augmentation for whole-dataset training '''
     args.dc_aug_param = get_daparam(args.dataset, args.model, args.model, None)
     args.dc_aug_param['strategy'] = 'crop_scale_rotate'  # for whole-dataset training
@@ -50,11 +70,19 @@ def main(args):
 
     for it in range(0, args.num_experts):
 
+        wandb.init(sync_tensorboard=False,
+                entity='tongchen',
+                project="mtt-buffer50-{}-{}-lr{}-ep{}".format(args.dataset, args.model, args.lr_teacher, args.train_epochs),
+                name='r18-crck-{}'.format(it)
+            #    name='test'
+               )
+
         ''' Train synthetic data '''
-        teacher_net = get_network(args.model, channel, num_classes, im_size).to(args.device) # get a random model
+        teacher_net = get_network(args.model, channel, num_classes, im_size, no_frz=args.no_frz).to(args.device) # get a random model
         teacher_net.train()
         lr = args.lr_teacher
-        teacher_optim = torch.optim.SGD(teacher_net.parameters(), lr=lr, momentum=args.mom, weight_decay=args.l2)  # optimizer_img for synthetic data
+        # teacher_optim = torch.optim.SGD(teacher_net.parameters(), lr=lr, momentum=args.mom, weight_decay=args.l2)  # optimizer_img for synthetic data
+        teacher_optim = torch.optim.Adam(teacher_net.parameters(), lr=lr, betas=(0.9, 0.99), weight_decay=1e-4)
         teacher_optim.zero_grad()
 
         timestamps = []
@@ -64,23 +92,29 @@ def main(args):
         lr_schedule = [args.train_epochs // 2 + 1]
 
         for e in range(args.train_epochs):
-            if args.dataset == 'CRC' or args.dataset == 'CRC_small':
-                train_loss, train_acc, train_auc = epoch("train", dataloader=trainloader, dataset=dst_train, batch_size=args.batch_train, net=teacher_net, optimizer=teacher_optim,
-                                            criterion=criterion, args=args, aug=True)
+            print(e)
+            wandb.log({"Progress": e}, step=e)
 
-                test_loss, test_acc, test_auc = epoch("test", dataloader=testloader, dataset=dst_test, batch_size=128, net=teacher_net, optimizer=None,
-                                            criterion=criterion, args=args, aug=False)
-                
-                print("Itr: {}\tEpoch: {}\tTrain Acc: {}\tTrain AUC: {}\nTest Acc: {}\tTest AUC: {}".format(it, e, train_acc, train_auc, test_acc, test_auc))
-                
+            train_loss, train_acc, train_auc = epoch("train", dataloader=trainloader, net=teacher_net, optimizer=teacher_optim,
+                                        criterion=criterion, args=args, aug=False)
+
+            # test_loss, test_acc, test_auc = epoch("test", dataloader=testloader, net=teacher_net, optimizer=None,
+            #                             criterion=criterion, args=args, aug=False)
+            if args.dataset=='PG':
+                print("Itr: {}\tEpoch: {}\tTrain Acc: {}\tTrain Bag Acc: {}".format(it, e, train_acc, train_auc))
             else:
-                train_loss, train_acc = epoch("train", dataloader=trainloader, dataset=dst_train, batch_size=args.batch_train, net=teacher_net, optimizer=teacher_optim,
-                                            criterion=criterion, args=args, aug=True)
-
-                test_loss, test_acc = epoch("test", dataloader=testloader, dataset=dst_test, batch_size=128, net=teacher_net, optimizer=None,
-                                            criterion=criterion, args=args, aug=False)    
-
-                print("Itr: {}\tEpoch: {}\tTrain Acc: {}\tTest Acc: {}".format(it, e, train_acc, test_acc))
+                print("Itr: {}\tEpoch: {}\tTrain Acc: {}\tTrain Auc: {}\tTest Acc: {}\tTest Auc: {}".format(it, e, train_acc, train_auc, test_acc, test_auc))
+            # print("Itr: {}\tEpoch: {}\tTrain Acc: {}".format(it, e, train_acc))
+            wandb.log({'Train Loss': train_loss}, step=e)
+            wandb.log({'Train Acc': train_acc}, step=e)
+            if args.dataset=='PG':
+                wandb.log({'Train Bag Acc': train_auc}, step=e)
+            else:
+                wandb.log({'Train Auc': train_auc}, step=e)
+            # wandb.log({'Test Loss': test_loss}, step=e)
+            # wandb.log({'Test Acc': test_acc}, step=e)
+            # wandb.log({'Test Auc': test_auc}, step=e)
+            wandb.log({'lr': lr}, step=e)
 
             timestamps.append([p.detach().cpu() for p in teacher_net.parameters()])
 
@@ -88,6 +122,12 @@ def main(args):
                 lr *= 0.1
                 teacher_optim = torch.optim.SGD(teacher_net.parameters(), lr=lr, momentum=args.mom, weight_decay=args.l2)
                 teacher_optim.zero_grad()
+            
+            # if e == 49:
+            #     dict_dir = os.path.join('./ckpt', wandb.run.project)
+            #     if not os.path.exists(dict_dir):
+            #         os.makedirs(dict_dir)
+            #     torch.save(teacher_net.state_dict(), os.path.join(dict_dir, 'dict_{}.pth'.format(it)))
 
         trajectories.append(timestamps)
 
@@ -98,6 +138,8 @@ def main(args):
             print("Saving {}".format(os.path.join(save_dir, "replay_buffer_{}.pt".format(n))))
             torch.save(trajectories, os.path.join(save_dir, "replay_buffer_{}.pt".format(n)))
             trajectories = []
+        
+        wandb.finish()
 
 
 if __name__ == '__main__':
@@ -121,7 +163,8 @@ if __name__ == '__main__':
     parser.add_argument('--mom', type=float, default=0, help='momentum')
     parser.add_argument('--l2', type=float, default=0, help='l2 regularization')
     parser.add_argument('--save_interval', type=int, default=10)
-    
+    parser.add_argument('--no_frz', action='store_true')
 
     args = parser.parse_args()
     main(args)
+

@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import os
 import kornia as K
-import tqdm
+from tqdm import tqdm
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 from scipy.ndimage.interpolation import rotate as scipyrotate
@@ -121,13 +121,17 @@ class GlobalAveragePooling(nn.Module):
         return outs
 
 class MyResNet18(nn.Module):
-    def __init__(self, ck_path=None):
+    def __init__(self, ck_path=None, num_classes=2, no_frz=False):
         super(MyResNet18, self).__init__()
-        self.resnet = ResNet(depth=18, out_indices=(3, ), frozen_stages=3)
+        if no_frz:
+            self.resnet = ResNet(depth=18, out_indices=(3, ))
+        else:
+            self.resnet = ResNet(depth=18, out_indices=(3, ), frozen_stages=3)
         if ck_path is not None:
             self.resnet.init_weights(ck_path)
-        self.classifier = nn.Linear(512, 2, bias=True)
+        self.classifier = nn.Linear(512, num_classes, bias=True)
         self.pool = GlobalAveragePooling()
+        self.dropout = nn.Dropout(p=0.5)
 
     def forward(self, x):
         # 3*224*224
@@ -135,9 +139,11 @@ class MyResNet18(nn.Module):
         # out = F.avg_pool2d(out, kernel_size=7) # 512*1
         out = self.pool(out)
         out = out.view(out.size(0), -1)
+        out = self.dropout(out)
         out = self.classifier(out)
         out = F.softmax(out, dim=-1)
         return out
+
 
 class Config:
     imagenette = [0, 217, 482, 491, 497, 566, 569, 571, 574, 701]
@@ -264,9 +270,16 @@ def get_dataset(dataset, data_path, batch_size=1, subset="imagenette", args=None
         std = [0.229, 0.224, 0.225]
 
         if args.zca:
-            transform = transforms.Compose([transforms.ToTensor()])
+            transform_train = transform_test = transforms.Compose([transforms.ToTensor()])
         else:
-            transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+            transform_test = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+            transform_train = transforms.Compose([
+                transforms.RandomRotation(degrees=15),
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomVerticalFlip(),
+                transforms.RandomResizedCrop(size=224, scale=(0.8, 1.0)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=mean, std=std)])
         
         task = int(dataset[3])-1
         class_names = ['MSI', 'MSS']
@@ -274,8 +287,8 @@ def get_dataset(dataset, data_path, batch_size=1, subset="imagenette", args=None
         CRC_test = '/home/dqwang/CRC_DX_test'
         train_ann_path = '../datasets/CRC/annotation/train_ann.txt'
         test_ann_path = '../datasets/CRC/annotation/test_ann.txt'
-        dst_train = CRC(CRC_train, train_ann_path, cls_ind=task, train=True, transform=transform) # no augmentation
-        dst_test = CRC(CRC_test, test_ann_path, cls_ind=task, train=False, transform=transform)
+        dst_train = CRC(CRC_train, train_ann_path, cls_ind=task, train=True, transform=transform_train) # no augmentation
+        dst_test = CRC(CRC_test, test_ann_path, cls_ind=task, train=False, transform=transform_test)
 
         class_map = {x: x for x in range(num_classes)}
 
@@ -339,7 +352,7 @@ def get_default_convnet_setting():
 
 
 
-def get_network(model, channel, num_classes, im_size=(32, 32), dist=True):
+def get_network(model, channel, num_classes, im_size=(32, 32), dist=True, no_frz=False):
     torch.random.manual_seed(int(time.time() * 1000) % 100000)
     net_width, net_depth, net_act, net_norm, net_pooling = get_default_convnet_setting()
 
@@ -356,7 +369,7 @@ def get_network(model, channel, num_classes, im_size=(32, 32), dist=True):
     elif model == 'VGG11BN':
         net = VGG11BN(channel=channel, num_classes=num_classes)
     elif model == 'ResNet18':
-        net = MyResNet18(ck_path='./r18_imgpre.pth')
+        net = MyResNet18(ck_path='/shared/dqwang/scratch/lfzhou/r18_imgpre.pth', num_classes=num_classes, no_frz=no_frz)
     elif model == 'ResNet34':
         net = ResNet34(channel=channel, num_classes=num_classes)
     elif model == 'ResNet50':
@@ -468,7 +481,7 @@ def epoch(mode, dataloader, net, optimizer, criterion, args, aug, texture=False)
         bag_pred_dict = defaultdict(list)
         bag_results=[]
 
-    for i_batch, datum in (enumerate(dataloader)):
+    for i_batch, datum in tqdm((enumerate(dataloader))):
         img = datum[0].float().to(args.device)
         lab = datum[1].long().to(args.device)
         if mode == 'test' or mode == 'train':
