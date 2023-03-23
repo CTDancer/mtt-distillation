@@ -78,8 +78,8 @@ def main(args):
         wandb.init(sync_tensorboard=False,
                 entity='tongchen',
                 project="mtt-buffer50-{}-{}-lr{}-ep{}".format(args.dataset, args.model, args.lr_teacher, args.train_epochs),
-                # name='r18-crck-{}'.format(it)
-               name='test'
+                name='r18-crck-{}'.format(it)
+            #    name='test'
                )
 
         ''' Train synthetic data '''
