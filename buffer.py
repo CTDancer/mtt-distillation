@@ -58,7 +58,7 @@ def main(args):
     # for ch in range(channel):
     #     print('real images channel %d, mean = %.4f, std = %.4f'%(ch, torch.mean(images_all[:, ch]), torch.std(images_all[:, ch])))
     
-    if args.dataset == 'MIMIC':
+    if args.dataset.startswith('MIMIC'):
         criterion = nn.BCEWithLogitsLoss().to(args.device)
     else:
         criterion = nn.CrossEntropyLoss().to(args.device)
@@ -99,7 +99,7 @@ def main(args):
         for e in range(args.train_epochs):
             wandb.log({"Progress": e}, step=e)
 
-            if args.dataset == "MIMIC":
+            if args.dataset.startswith('MIMIC'):
                 train_loss, train_f1 = epoch("train", dataloader=trainloader, net=teacher_net, optimizer=teacher_optim,
                                         criterion=criterion, args=args, aug=False)
                 test_loss, test_f1 = epoch("test", dataloader=testloader, net=teacher_net, optimizer=None,

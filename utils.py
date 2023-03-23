@@ -25,6 +25,7 @@ import os.path as osp
 import random
 import wandb
 import copy
+import pdb
 
 class CRCK(Dataset):
     """USPS Dataset.
@@ -377,11 +378,53 @@ def get_dataset(dataset, data_path, batch_size=1, subset="imagenette", args=None
             transforms.Normalize(mean=mean, std=std)]
 
         task = 0
-        class_names = ['0','1','2']
+        class_names = ['0','1','2','3','4','5','6','7','8','9','10','11','12','13']
         MIMIC_train = '/shared/dqwang/scratch/tongchen/MIMIC/train'
         MIMIC_test = '/shared/dqwang/scratch/tongchen/MIMIC/test'
         train_ann_path = '/shared/dqwang/scratch/yunkunzhang/mimic_multi-label_ann/train.txt'
         test_ann_path = '/shared/dqwang/scratch/yunkunzhang/mimic_multi-label_ann/test.txt'
+        dst_train = MIMIC(MIMIC_train, train_ann_path, cls_ind=task, train=True, transform=transforms.Compose(train_list)) # no augmentation
+        dst_test = MIMIC(MIMIC_test, test_ann_path, cls_ind=task, train=False, transform=transforms.Compose(test_list))
+        # class_names = dst_train.classes
+        class_map = {x: x for x in range(num_classes)}
+
+    elif dataset=='MIMIC_small':
+        channel = 3
+        im_size = (224, 224)
+        num_classes = 14
+        mean = [0.485, 0.456, 0.406]
+        std = [0.229, 0.224, 0.225]
+        train_list=[]
+        test_list=[]
+        if args.zca:
+            transform = transforms.Compose([transforms.ToTensor()])
+        else:
+            train_list += [
+                transforms.Resize((224, 224)),  # seems original code does not contain resize
+                # transforms.CenterCrop(224),  # try this?
+                transforms.ColorJitter(brightness=0.2, saturation=(0, 0.2), hue=0.1),
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomVerticalFlip(p=0.5)
+            ]
+            r = random.randint(0, 3)
+            for _ in range(r):
+                train_list.append(transforms.RandomRotation((90, 90)))
+            test_list += [
+               transforms.Resize((224, 224))
+            ]
+            train_list += [
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=std)]
+            test_list += [
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=std)]
+
+        task = 0
+        class_names = ['0','1','2','3','4','5','6','7','8','9','10','11','12','13']
+        MIMIC_train = '/shared/dqwang/scratch/tongchen/MIMIC_small/train'
+        MIMIC_test = '/shared/dqwang/scratch/tongchen/MIMIC_small/test'
+        train_ann_path = '/shared/dqwang/scratch/tongchen/MIMIC_small/annotation/train_ann.txt'
+        test_ann_path = '/shared/dqwang/scratch/tongchen/MIMIC_small/annotation/test_ann.txt'
         dst_train = MIMIC(MIMIC_train, train_ann_path, cls_ind=task, train=True, transform=transforms.Compose(train_list)) # no augmentation
         dst_test = MIMIC(MIMIC_test, test_ann_path, cls_ind=task, train=False, transform=transforms.Compose(test_list))
         # class_names = dst_train.classes
@@ -564,19 +607,22 @@ def micro_f1_score(y_true, y_pred, bagnames):
     y_pred: tensor of shape (num_samples, num_classes)
     bagnames: list of length num_samples, where bagnames[i] is the slide ID for the i-th sample
     """
+    # pdb.set_trace()
     true_positives, false_positives, false_negatives = 0, 0, 0
     bag_ids = list(set(bagnames))
     for bag_id in bag_ids:
         # Get the indices of all samples in the current slide
         indices = [i for i in range(len(bagnames)) if bagnames[i] == bag_id]
+        # pdb.set_trace()
         # Calculate the true positives, false positives, and false negatives for the samples in the current slide
-        tp = torch.logical_and(y_true[indices], y_pred[indices]).sum(dim=0)
-        fp = (y_pred[indices].logical_not() & y_true[indices]).sum(dim=0)
-        fn = (y_true[indices].logical_not() & y_pred[indices]).sum(dim=0)
+        tp = torch.logical_and(y_true[indices], y_pred[indices]).sum(dim=0).float()
+        fp = (y_pred[indices].logical_not() & y_true[indices]).sum(dim=0).float()
+        fn = (y_true[indices].logical_not() & y_pred[indices]).sum(dim=0).float()
         # Calculate the mean true positives, false positives, and false negatives for the current slide
         true_positives += tp.mean().item()
         false_positives += fp.mean().item()
         false_negatives += fn.mean().item()
+    # pdb.set_trace()
     precision = true_positives / (true_positives + false_positives + 1e-10)
     recall = true_positives / (true_positives + false_negatives + 1e-10)
     f1 = 2 * precision * recall / (precision + recall + 1e-10)
@@ -593,13 +639,19 @@ def epoch_mimic(mode, dataloader, net, optimizer, criterion, args, aug, texture=
     else:
         net.eval()
 
+    y_pred = []
+    y_true = []
     bagnames = []
     
     for i_batch, datum in tqdm(enumerate(dataloader), total=len(dataloader), desc="Loading data", position=0):
         img = datum[0].float().to(args.device)
         lab = datum[1].float().to(args.device)
         bagname = datum[2]
-        bagnames.append(bagname)
+
+        for i in range(len(bagname)):
+            bagnames.append(bagname[i])
+
+        # pdb.set_trace()
 
         if mode == "train" and texture:
             img = torch.cat([torch.stack([torch.roll(im, (torch.randint(args.im_size[0]*args.canvas_size, (1,)), torch.randint(args.im_size[0]*args.canvas_size, (1,))), (1,2))[:,:args.im_size[0],:args.im_size[1]] for im in img]) for _ in range(args.canvas_samples)])
@@ -619,6 +671,12 @@ def epoch_mimic(mode, dataloader, net, optimizer, criterion, args, aug, texture=
         else:
             output = net(img)
 
+        for i in range(lab.shape[0]):
+            y_true.append(lab[i].int())
+        
+        for i in range(output.shape[0]):
+            y_pred.append(output[i].int())
+
         loss = criterion(output, lab)
         loss_avg += loss.item()*n_b
         num_exp += n_b
@@ -629,12 +687,15 @@ def epoch_mimic(mode, dataloader, net, optimizer, criterion, args, aug, texture=
             optimizer.step()
     
     loss_avg /= num_exp
-    f1 = micro_f1_score(output, lab, bagnames)
+
+    y_pred = torch.stack(y_pred)
+    y_true = torch.stack(y_true)
+    f1 = micro_f1_score(y_pred, y_true, bagnames)
 
     return loss_avg, f1
 
 def epoch(mode, dataloader, net, optimizer, criterion, args, aug, texture=False):
-    if args.dataset == "MIMIC":
+    if args.dataset.startswith('MIMIC'):
         return epoch_mimic(mode, dataloader, net, optimizer, criterion, args, aug, texture)
         
     loss_avg, acc_avg, num_exp = 0, 0, 0
@@ -738,7 +799,7 @@ def evaluate_synset(it, it_eval, net, images_train, labels_train, testloader, ar
     lr_schedule = [Epoch//2+1]
     optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=0.0005)
 
-    if args.dataset == 'MIMIC':
+    if args.dataset.startswith('MIMIC'):
         criterion = nn.BCEWithLogitsLoss().to(args.device)
     else:
         criterion = nn.CrossEntropyLoss().to(args.device)
@@ -751,7 +812,7 @@ def evaluate_synset(it, it_eval, net, images_train, labels_train, testloader, ar
     loss_train_list = []
     f1_train_list = []
 
-    if args.dataset == "MIMIC":
+    if args.dataset.startswith('MIMIC'):
         for ep in tqdm.tqdm(range(Epoch+1)):
             loss_train, f1_train = epoch('eval_train', trainloader, net, optimizer, criterion, args, aug=False, texture=texture)
             f1_train_list.append(f1_train)
@@ -766,7 +827,7 @@ def evaluate_synset(it, it_eval, net, images_train, labels_train, testloader, ar
                 optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=0.0005)
 
     else:
-        for ep in tqdm.tqdm(range(Epoch+1)):
+        for ep in tqdm(range(Epoch+1)):
             loss_train, acc_train = epoch('eval_train', trainloader, net, optimizer, criterion, args, aug=False, texture=texture)
             acc_train_list.append(acc_train)
             loss_train_list.append(loss_train)
@@ -787,7 +848,7 @@ def evaluate_synset(it, it_eval, net, images_train, labels_train, testloader, ar
 
 
     time_train = time.time() - start
-    if args.dataset == 'MIMIC':
+    if args.dataset.startswith('MIMIC'):
         print('%s Evaluate_%02d: epoch = %04d train time = %d s train loss = %.6f train f1 = %.4f, test f1 = %.4f' % (get_time(), it_eval, Epoch, int(time_train), loss_train, f1_train, f1_test))
         if return_loss:
             return net, f1_train_list, f1_test, loss_train_list, loss_test
