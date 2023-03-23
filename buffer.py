@@ -3,8 +3,10 @@ import argparse
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-from utils import get_dataset, get_network, get_daparam, TensorDataset, epoch, ParamDiffAug
+from utils import get_dataset, get_network, get_daparam,\
+    TensorDataset, epoch, ParamDiffAug
 import copy
+
 import wandb
 
 import warnings
@@ -55,8 +57,11 @@ def main(args):
 
     # for ch in range(channel):
     #     print('real images channel %d, mean = %.4f, std = %.4f'%(ch, torch.mean(images_all[:, ch]), torch.std(images_all[:, ch])))
-
-    criterion = nn.CrossEntropyLoss().to(args.device)
+    
+    if args.dataset == 'MIMIC':
+        criterion = nn.BCEWithLogitsLoss().to(args.device)
+    else:
+        criterion = nn.CrossEntropyLoss().to(args.device)
 
     trajectories = []
 
@@ -73,8 +78,8 @@ def main(args):
         wandb.init(sync_tensorboard=False,
                 entity='tongchen',
                 project="mtt-buffer50-{}-{}-lr{}-ep{}".format(args.dataset, args.model, args.lr_teacher, args.train_epochs),
-                name='r18-crck-{}'.format(it)
-            #    name='test'
+                # name='r18-crck-{}'.format(it)
+               name='test'
                )
 
         ''' Train synthetic data '''
@@ -92,29 +97,38 @@ def main(args):
         lr_schedule = [args.train_epochs // 2 + 1]
 
         for e in range(args.train_epochs):
-            print(e)
             wandb.log({"Progress": e}, step=e)
 
-            train_loss, train_acc, train_auc = epoch("train", dataloader=trainloader, net=teacher_net, optimizer=teacher_optim,
+            if args.dataset == "MIMIC":
+                train_loss, train_f1 = epoch("train", dataloader=trainloader, net=teacher_net, optimizer=teacher_optim,
                                         criterion=criterion, args=args, aug=False)
+                test_loss, test_f1 = epoch("test", dataloader=testloader, net=teacher_net, optimizer=None,
+                                        criterion=criterion, args=args, aug=False)
+                
+                print("Itr: {}\tEpoch: {}\tTrain F1: {}\tTest F1: {}".format(it, e, train_f1, test_f1))
 
-            # test_loss, test_acc, test_auc = epoch("test", dataloader=testloader, net=teacher_net, optimizer=None,
-            #                             criterion=criterion, args=args, aug=False)
-            if args.dataset=='PG':
-                print("Itr: {}\tEpoch: {}\tTrain Acc: {}\tTrain Bag Acc: {}".format(it, e, train_acc, train_auc))
+                wandb.log({'Train Loss': train_loss}, step=e)
+                wandb.log({'Train F1': train_f1}, step=e)
+                wandb.log({'Test Loss': test_loss}, step=e)
+                wandb.log({'Test F1': test_f1}, step=e)
+                wandb.log({'lr': lr}, step=e)
+            
             else:
+                train_loss, train_acc, train_auc = epoch("train", dataloader=trainloader, net=teacher_net, optimizer=teacher_optim,
+                                            criterion=criterion, args=args, aug=False)
+
+                test_loss, test_acc, test_auc = epoch("test", dataloader=testloader, net=teacher_net, optimizer=None,
+                                            criterion=criterion, args=args, aug=False)
+
                 print("Itr: {}\tEpoch: {}\tTrain Acc: {}\tTrain Auc: {}\tTest Acc: {}\tTest Auc: {}".format(it, e, train_acc, train_auc, test_acc, test_auc))
-            # print("Itr: {}\tEpoch: {}\tTrain Acc: {}".format(it, e, train_acc))
-            wandb.log({'Train Loss': train_loss}, step=e)
-            wandb.log({'Train Acc': train_acc}, step=e)
-            if args.dataset=='PG':
-                wandb.log({'Train Bag Acc': train_auc}, step=e)
-            else:
+
+                wandb.log({'Train Loss': train_loss}, step=e)
+                wandb.log({'Train Acc': train_acc}, step=e)
                 wandb.log({'Train Auc': train_auc}, step=e)
-            # wandb.log({'Test Loss': test_loss}, step=e)
-            # wandb.log({'Test Acc': test_acc}, step=e)
-            # wandb.log({'Test Auc': test_auc}, step=e)
-            wandb.log({'lr': lr}, step=e)
+                wandb.log({'Test Loss': test_loss}, step=e)
+                wandb.log({'Test Acc': test_acc}, step=e)
+                wandb.log({'Test Auc': test_auc}, step=e)
+                wandb.log({'lr': lr}, step=e)
 
             timestamps.append([p.detach().cpu() for p in teacher_net.parameters()])
 
