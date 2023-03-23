@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import os
 import kornia as K
-import tqdm
+from tqdm import tqdm
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
 from scipy.ndimage.interpolation import rotate as scipyrotate
@@ -595,7 +595,7 @@ def epoch_mimic(mode, dataloader, net, optimizer, criterion, args, aug, texture=
 
     bagnames = []
     
-    for i_batch, datum in enumerate(dataloader):
+    for i_batch, datum in tqdm(enumerate(dataloader), total=len(dataloader), desc="Loading data", position=0):
         img = datum[0].float().to(args.device)
         lab = datum[1].float().to(args.device)
         bagname = datum[2]
@@ -656,7 +656,7 @@ def epoch(mode, dataloader, net, optimizer, criterion, args, aug, texture=False)
         bag_pred_dict = defaultdict(list)
         bag_results=[]
 
-    for i_batch, datum in enumerate(dataloader):
+    for i_batch, datum in tqdm(enumerate(dataloader), total=len(dataloader), desc="Loading data", position=0):
         img = datum[0].float().to(args.device)
         lab = datum[1].long().to(args.device)
         if mode == 'test' or mode == 'train':
@@ -738,7 +738,10 @@ def evaluate_synset(it, it_eval, net, images_train, labels_train, testloader, ar
     lr_schedule = [Epoch//2+1]
     optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=0.0005)
 
-    criterion = nn.CrossEntropyLoss().to(args.device)
+    if args.dataset == 'MIMIC':
+        criterion = nn.BCEWithLogitsLoss().to(args.device)
+    else:
+        criterion = nn.CrossEntropyLoss().to(args.device)
 
     dst_train = TensorDataset(images_train, labels_train)
     trainloader = torch.utils.data.DataLoader(dst_train, batch_size=args.batch_train, shuffle=True, num_workers=0)
@@ -746,36 +749,56 @@ def evaluate_synset(it, it_eval, net, images_train, labels_train, testloader, ar
     start = time.time()
     acc_train_list = []
     loss_train_list = []
+    f1_train_list = []
 
-    for ep in tqdm.tqdm(range(Epoch+1)):
-        loss_train, acc_train = epoch('eval_train', trainloader, net, optimizer, criterion, args, aug=False, texture=texture)
-        acc_train_list.append(acc_train)
-        loss_train_list.append(loss_train)
+    if args.dataset == "MIMIC":
+        for ep in tqdm.tqdm(range(Epoch+1)):
+            loss_train, f1_train = epoch('eval_train', trainloader, net, optimizer, criterion, args, aug=False, texture=texture)
+            f1_train_list.append(f1_train)
+            loss_train_list.append(loss_train)
 
-        # if ep % (Epoch//10) == 0:
-        #     with torch.no_grad():
-        #         loss_test, acc_test, auc_test = epoch('test', testloader, net, optimizer, criterion, args, aug=False)
-        #     wandb.log({'Acc/Eval_{}_{}'.format(it, it_eval): acc_test}, step=ep)
-        #     wandb.log({'Auc/Eval_{}_{}'.format(it, it_eval): auc_test}, step=ep)
-        #     wandb.log({'Lr/Eval_{}_{}'.format(it, it_eval): lr}, step=ep)
-        if ep == Epoch:
-            with torch.no_grad():
-                loss_test, acc_test, auc_test = epoch('test', testloader, net, optimizer, criterion, args, aug=False)
+            if ep == Epoch:
+                with torch.no_grad():
+                    loss_test, f1_test = epoch('test', testloader, net, optimizer, criterion, args, aug=False)
 
-        if ep in lr_schedule:
-            lr *= 0.1
-            optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=0.0005)
+            if ep in lr_schedule:
+                lr *= 0.1
+                optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=0.0005)
+
+    else:
+        for ep in tqdm.tqdm(range(Epoch+1)):
+            loss_train, acc_train = epoch('eval_train', trainloader, net, optimizer, criterion, args, aug=False, texture=texture)
+            acc_train_list.append(acc_train)
+            loss_train_list.append(loss_train)
+
+            # if ep % (Epoch//10) == 0:
+            #     with torch.no_grad():
+            #         loss_test, acc_test, auc_test = epoch('test', testloader, net, optimizer, criterion, args, aug=False)
+            #     wandb.log({'Acc/Eval_{}_{}'.format(it, it_eval): acc_test}, step=ep)
+            #     wandb.log({'Auc/Eval_{}_{}'.format(it, it_eval): auc_test}, step=ep)
+            #     wandb.log({'Lr/Eval_{}_{}'.format(it, it_eval): lr}, step=ep)
+            if ep == Epoch:
+                with torch.no_grad():
+                    loss_test, acc_test, auc_test = epoch('test', testloader, net, optimizer, criterion, args, aug=False)
+
+            if ep in lr_schedule:
+                lr *= 0.1
+                optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9, weight_decay=0.0005)
 
 
     time_train = time.time() - start
-    if args.dataset=='MIMIC':
-        print('%s Evaluate_%02d: epoch = %04d train time = %d s train loss = %.6f train acc = %.4f, test acc = %.4f, test bag acc = %.4f' % (get_time(), it_eval, Epoch, int(time_train), loss_train, acc_train, acc_test, auc_test))
+    if args.dataset == 'MIMIC':
+        print('%s Evaluate_%02d: epoch = %04d train time = %d s train loss = %.6f train f1 = %.4f, test f1 = %.4f' % (get_time(), it_eval, Epoch, int(time_train), loss_train, f1_train, f1_test))
+        if return_loss:
+            return net, f1_train_list, f1_test, loss_train_list, loss_test
+        else:
+            return net, f1_train_list, f1_test
     else:
         print('%s Evaluate_%02d: epoch = %04d train time = %d s train loss = %.6f train acc = %.4f, test acc = %.4f, test auc = %.4f' % (get_time(), it_eval, Epoch, int(time_train), loss_train, acc_train, acc_test, auc_test))
-    if return_loss:
-        return net, acc_train_list, acc_test, loss_train_list, loss_test, auc_test
-    else:
-        return net, acc_train_list, acc_test, auc_test
+        if return_loss:
+            return net, acc_train_list, acc_test, loss_train_list, loss_test, auc_test
+        else:
+            return net, acc_train_list, acc_test, auc_test
 
 
 def augment(images, dc_aug_param, device):
