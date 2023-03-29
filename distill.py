@@ -161,8 +161,8 @@ def main(args):
     ''' training '''
     image_syn = image_syn.detach().to(args.device).requires_grad_(True)
     syn_lr = syn_lr.detach().to(args.device).requires_grad_(True)
-    optimizer_img = torch.optim.SGD([image_syn], lr=args.lr_img, momentum=0.5)
-    optimizer_lr = torch.optim.SGD([syn_lr], lr=args.lr_lr, momentum=0.5)
+    optimizer_img = torch.optim.SGD([image_syn], lr=args.lr_img, momentum=args.img_mom, weight_decay=args.img_wd)
+    optimizer_lr = torch.optim.SGD([syn_lr], lr=args.lr_lr, momentum=args.lr_mom, weight_decay=args.lr_wd)
     optimizer_img.zero_grad()
 
     criterion = nn.CrossEntropyLoss().to(args.device)
@@ -208,6 +208,9 @@ def main(args):
 
     best_std = {m: 0 for m in model_eval_pool}
 
+    best_f1 = {m: 0 for m in model_eval_pool}
+
+
     for it in range(0, args.Iteration+1):
         save_this_it = False
 
@@ -223,43 +226,75 @@ def main(args):
                 else:
                     print('DC augmentation parameters: \n', args.dc_aug_param)
 
-                accs_test = []
-                accs_train = []
-                aucs_test = []
-                for it_eval in range(args.num_eval):
-                    net_eval = get_network(model_eval, channel, num_classes, im_size).to(args.device) # get a random model
+                if args.dataset == "MIMIC"
+                    f1_tests = []
+                    f1_trains = []
+                    for it_eval in range(args.num_eval):
+                        net_eval = get_network(model_eval, channel, num_classes, im_size).to(args.device) # get a random model
 
-                    eval_labs = label_syn
-                    with torch.no_grad():
-                        image_save = image_syn
-                    image_syn_eval, label_syn_eval = copy.deepcopy(image_save.detach()), copy.deepcopy(eval_labs.detach()) # avoid any unaware modification
+                        eval_labs = label_syn
+                        with torch.no_grad():
+                            image_save = image_syn
+                        image_syn_eval, label_syn_eval = copy.deepcopy(image_save.detach()), copy.deepcopy(eval_labs.detach()) # avoid any unaware modification
 
-                    args.lr_net = syn_lr.item()
-                    _, acc_train, acc_test, auc_test = evaluate_synset(it, it_eval, net_eval, image_syn_eval, label_syn_eval, testloader, args, texture=args.texture)
-                    accs_test.append(acc_test)
-                    accs_train.append(acc_train)
-                    aucs_test.append(auc_test)
-                accs_test = np.array(accs_test)
-                accs_train = np.array(accs_train)
-                aucs_test = np.array(aucs_test)
+                        args.lr_net = syn_lr.item()
 
-                acc_test_mean = np.mean(accs_test)
-                acc_test_std = np.std(accs_test)
-                auc_test_mean = np.mean(aucs_test)
-                auc_test_std = np.std(aucs_test)
-                if auc_test_mean > best_acc[model_eval]:
-                    best_acc[model_eval] = auc_test_mean
-                    best_std[model_eval] = auc_test_std
-                    save_this_it = True
-                print('Evaluate %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(accs_test), model_eval, auc_test_mean, auc_test_std))
-                wandb.log({'Accuracy/{}'.format(model_eval): acc_test_mean}, step=it)
-                # wandb.log({'Max_Accuracy/{}'.format(model_eval): best_acc[model_eval]}, step=it)
-                wandb.log({'Std_Acc/{}'.format(model_eval): acc_test_std}, step=it)
-                # wandb.log({'Max_Std/{}'.format(model_eval): best_std[model_eval]}, step=it)
-                wandb.log({'Auc/{}'.format(model_eval): auc_test_mean}, step=it)
-                wandb.log({'Max_Auc/{}'.format(model_eval): best_acc[model_eval]}, step=it)
-                wandb.log({'Std_Auc/{}'.format(model_eval): auc_test_std}, step=it)
-                wandb.log({'Max_Std_Auc/{}'.format(model_eval): best_std[model_eval]}, step=it)
+                        _, f1_train, f1_test = evaluate_synset(it, it_eval, net_eval, image_syn_eval, label_syn_eval, testloader, args, texture=args.texture)
+                        f1_trains.append(f1_train)
+                        f1_tests.append(f1_test)
+                    f1_trains = np.array(f1_trains)
+                    f1_tests = np.array(f1_tests)
+
+                    f1_test_mean = np.mean(f1_tests)
+                    f1_test_std = np.std(f1_tests)
+
+                    if f1_test_mean > best_f1[model_eval]:
+                        best_f1[model_eval] = f1_test_mean
+                        best_std[model_eval] = f1_test_std
+                        save_this_it = True
+                    print('Evaluate %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(f1_tests), model_eval, f1_test_mean, f1_test_std))
+                    wandb.log({'F1/{}'.format(model_eval): f1_test_mean}, step=it)
+                    wandb.log({'Std_F1/{}'.format(model_eval): f1_test_std}, step=it)
+                    wandb.log({'Max_F1/{}'.format(model_eval): best_f1[model_eval]}, step=it)    
+
+                else:
+                    accs_test = []
+                    accs_train = []
+                    aucs_test = []
+                    for it_eval in range(args.num_eval):
+                        net_eval = get_network(model_eval, channel, num_classes, im_size).to(args.device) # get a random model
+
+                        eval_labs = label_syn
+                        with torch.no_grad():
+                            image_save = image_syn
+                        image_syn_eval, label_syn_eval = copy.deepcopy(image_save.detach()), copy.deepcopy(eval_labs.detach()) # avoid any unaware modification
+
+                        args.lr_net = syn_lr.item()
+                        _, acc_train, acc_test, auc_test = evaluate_synset(it, it_eval, net_eval, image_syn_eval, label_syn_eval, testloader, args, texture=args.texture)
+                        accs_test.append(acc_test)
+                        accs_train.append(acc_train)
+                        aucs_test.append(auc_test)
+                    accs_test = np.array(accs_test)
+                    accs_train = np.array(accs_train)
+                    aucs_test = np.array(aucs_test)
+
+                    acc_test_mean = np.mean(accs_test)
+                    acc_test_std = np.std(accs_test)
+                    auc_test_mean = np.mean(aucs_test)
+                    auc_test_std = np.std(aucs_test)
+                    if auc_test_mean > best_acc[model_eval]:
+                        best_acc[model_eval] = auc_test_mean
+                        best_std[model_eval] = auc_test_std
+                        save_this_it = True
+                    print('Evaluate %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(accs_test), model_eval, auc_test_mean, auc_test_std))
+                    wandb.log({'Accuracy/{}'.format(model_eval): acc_test_mean}, step=it)
+                    # wandb.log({'Max_Accuracy/{}'.format(model_eval): best_acc[model_eval]}, step=it)
+                    wandb.log({'Std_Acc/{}'.format(model_eval): acc_test_std}, step=it)
+                    # wandb.log({'Max_Std/{}'.format(model_eval): best_std[model_eval]}, step=it)
+                    wandb.log({'Auc/{}'.format(model_eval): auc_test_mean}, step=it)
+                    wandb.log({'Max_Auc/{}'.format(model_eval): best_acc[model_eval]}, step=it)
+                    wandb.log({'Std_Auc/{}'.format(model_eval): auc_test_std}, step=it)
+                    wandb.log({'Max_Std_Auc/{}'.format(model_eval): best_std[model_eval]}, step=it)
 
 
         # if it in eval_it_pool and (save_this_it or it % 1000 == 0):
@@ -512,6 +547,11 @@ if __name__ == '__main__':
     parser.add_argument('--force_save', action='store_true', help='this will save images for 50ipc')
     
     parser.add_argument('--data_aug', action='store_true', help='this will use data augmentation after initializing synthetic images')
+
+    parser.add_argument('--img_mom', type=float, default=0.5, help='the momentum of optimizer_img')
+    parser.add_argument('--lr_mom', type=float, default=0.5, help='the momentum of optimizer_lr')
+    parser.add_argument('--img_wd', type=float, default=0, help='the weight decay of optimizer_img')
+    parser.add_argument('--lr_wd', type=float, default=0, help='the weight decay of optimize_lr')
 
     args = parser.parse_args()
 
