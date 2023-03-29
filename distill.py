@@ -226,7 +226,7 @@ def main(args):
                 else:
                     print('DC augmentation parameters: \n', args.dc_aug_param)
 
-                if args.dataset == "MIMIC"
+                if args.dataset == "MIMIC":
                     f1_tests = []
                     f1_trains = []
                     for it_eval in range(args.num_eval):
