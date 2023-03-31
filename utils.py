@@ -18,7 +18,7 @@ from networks import MLP, ConvNet, LeNet, AlexNet, VGG11BN, VGG11, ResNet18, Res
 import numpy as np
 from PIL import Image
 
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, f1_score
 from mmcv.cnn.resnet import ResNet
 from collections import defaultdict
 import os.path as osp
@@ -90,57 +90,64 @@ class CRCK(Dataset):
         return item_list
 
 class MIMIC(Dataset):
-    def __init__(self, root, ann_file, cls_ind, train=True, transform=None):
+    def __init__(self, root, ann_file, train=True, transform=None):
         """Init MIMIC dataset."""
-
         self.train = train
+        self.data_prefix = root
         self.ann_file = ann_file
         self.transform = transform
         self.dataset_size = None
-        self.ann_list = self.list_from_file(self.ann_file,root)
-        self.cls_ind = cls_ind
-
+        self.subject_infos = {}
+        self.data_infos = self.load_annotations()
+        self.CLASSES = [str(i) for i in range(14)]
 
     def __getitem__(self, index):
-        """Get images and target for data loader.
-        Args:
-            index (int): Index
-        Returns:
-            tuple: (image, target) where target is index of the target class.
-        """
-        img_path = self.ann_list[index].split(' ')[0]
-        bagname = self.ann_list[index].split(' ')[1]
-        label_str = self.ann_list[index].split(' ')[2]
-        label = torch.tensor([int(i) for i in label_str])
-        img = Image.open(img_path).convert('RGB')
+        img = Image.open(self.data_infos[index]['image_path']).convert('RGB')
 
         if self.transform is not None:
             img = self.transform(img)
 
+        gt_label = self.data_infos[index]['gt_label']
+        bagname = self.data_infos[index]['bag']
+
         if self.train:
             # return img, label
-            return img, label, bagname
+            # print(gt_label)
+            return img, gt_label, bagname
         else:
             # return img, label
-            return img, label, bagname
+            return img, gt_label, bagname
 
     def __len__(self):
         """Return size of dataset."""
-        return len(self.ann_list)
+        return len(self.data_infos)
 
-    def list_from_file(self,ann,pre):
+    def load_annotations(self):
         """
         Load a text file and parse the content as a list of strings.
         Each string is composed of : path + bagname + label.
         """
-        print(ann)
-        item_list = []
-        with open(ann,'r') as f:
+        data_infos = []
+        with open(self.ann_file,'r') as f:
             for line in f:
-                item = line.rstrip('\n\r')
-                temp = item.split(' ')
-                item_list.append(pre+'/'+temp[0][18:] + ' ' + temp[0][:18] + ' ' + temp[1])
-        return item_list
+                filename, class_name = line.strip().split(' ')
+                subject_id, study_id, filename = filename.split('_')
+                img_path = os.path.join(self.data_prefix, filename)
+                bagname = f'{subject_id}_{study_id}'
+                gt_label = [int(label) for label in class_name]  # class_to_idx
+                info = {
+                    'image_path': img_path,
+                    'bag': bagname,
+                    'gt_label': gt_label,
+                    'subject_id': subject_id,
+                    'study_id': study_id
+                }
+                data_infos.append(info)
+
+        for i, info in enumerate(data_infos):
+            self.subject_infos[info['bag']] = self.subject_infos.get(info['bag'], []) + [i] 
+        return data_infos
+
 
 class GlobalAveragePooling(nn.Module):
     """Global Average Pooling neck.
@@ -204,6 +211,29 @@ class MyResNet18(nn.Module):
         out = F.softmax(out, dim=-1)
         return out
 
+class MyResNet50(nn.Module):
+    def __init__(self, ck_path=None, num_classes=2, no_frz=False):
+        super(MyResNet50, self).__init__()
+        if no_frz:
+            self.resnet = ResNet(depth=50, out_indices=(3, ))
+        else:
+            self.resnet = ResNet(depth=50, out_indices=(3, ), frozen_stages=3)
+        if ck_path is not None:
+            self.resnet.init_weights(ck_path)
+        self.classifier = nn.Linear(2048, num_classes, bias=True)
+        self.pool = GlobalAveragePooling()
+        self.dropout = nn.Dropout(p=0.5)
+
+    def forward(self, x):
+        # 3*224*224
+        out = self.resnet(x) # 64/128/256/512*7*7
+        # out = F.avg_pool2d(out, kernel_size=7) # 512*1
+        out = self.pool(out)
+        out = out.view(out.size(0), -1)
+        out = self.dropout(out)
+        out = self.classifier(out)
+        out = F.softmax(out, dim=-1)
+        return out
 
 class Config:
     imagenette = [0, 217, 482, 491, 497, 566, 569, 571, 574, 701]
@@ -350,41 +380,34 @@ def get_dataset(dataset, data_path, batch_size=1, subset="imagenette", args=None
         channel = 3
         im_size = (224, 224)
         num_classes = 14
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
-        train_list=[]
-        test_list=[]
+        mean=[0.485, 0.456, 0.406]
+        std=[0.229, 0.224, 0.225]
+
         if args.zca:
             transform = transforms.Compose([transforms.ToTensor()])
         else:
-            train_list += [
-                transforms.Resize((224, 224)),  # seems original code does not contain resize
-                # transforms.CenterCrop(224),  # try this?
-                transforms.ColorJitter(brightness=0.2, saturation=(0, 0.2), hue=0.1),
-                transforms.RandomHorizontalFlip(p=0.5),
-                transforms.RandomVerticalFlip(p=0.5)
-            ]
-            r = random.randint(0, 3)
-            for _ in range(r):
-                train_list.append(transforms.RandomRotation((90, 90)))
-            test_list += [
-               transforms.Resize((224, 224))
-            ]
-            train_list += [
-            transforms.ToTensor(),
-            transforms.Normalize(mean=mean, std=std)]
-            test_list += [
-            transforms.ToTensor(),
-            transforms.Normalize(mean=mean, std=std)]
+            train_transform = transforms.Compose([
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomRotation(15),
+                transforms.Resize(224),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225])
+            ])
+            test_transform = transforms.Compose([
+                transforms.Resize(224),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225])
+            ])
 
-        task = 0
-        class_names = ['0','1','2','3','4','5','6','7','8','9','10','11','12','13']
+        class_names = [str(i) for i in range(14)]
         MIMIC_train = '/shared/dqwang/scratch/tongchen/MIMIC/train'
         MIMIC_test = '/shared/dqwang/scratch/tongchen/MIMIC/test'
         train_ann_path = '/shared/dqwang/scratch/yunkunzhang/mimic_multi-label_ann/train.txt'
         test_ann_path = '/shared/dqwang/scratch/yunkunzhang/mimic_multi-label_ann/test.txt'
-        dst_train = MIMIC(MIMIC_train, train_ann_path, cls_ind=task, train=True, transform=transforms.Compose(train_list)) # no augmentation
-        dst_test = MIMIC(MIMIC_test, test_ann_path, cls_ind=task, train=False, transform=transforms.Compose(test_list))
+        dst_train = MIMIC(MIMIC_train, train_ann_path, train=True, transform=train_transform)
+        dst_test = MIMIC(MIMIC_test, test_ann_path, train=False, transform=test_transform)
         # class_names = dst_train.classes
         class_map = {x: x for x in range(num_classes)}
 
@@ -392,41 +415,34 @@ def get_dataset(dataset, data_path, batch_size=1, subset="imagenette", args=None
         channel = 3
         im_size = (224, 224)
         num_classes = 14
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
-        train_list=[]
-        test_list=[]
+        mean=[0.485, 0.456, 0.406]
+        std=[0.229, 0.224, 0.225]
+
         if args.zca:
             transform = transforms.Compose([transforms.ToTensor()])
         else:
-            train_list += [
-                transforms.Resize((224, 224)),  # seems original code does not contain resize
-                # transforms.CenterCrop(224),  # try this?
-                transforms.ColorJitter(brightness=0.2, saturation=(0, 0.2), hue=0.1),
-                transforms.RandomHorizontalFlip(p=0.5),
-                transforms.RandomVerticalFlip(p=0.5)
-            ]
-            r = random.randint(0, 3)
-            for _ in range(r):
-                train_list.append(transforms.RandomRotation((90, 90)))
-            test_list += [
-               transforms.Resize((224, 224))
-            ]
-            train_list += [
-            transforms.ToTensor(),
-            transforms.Normalize(mean=mean, std=std)]
-            test_list += [
-            transforms.ToTensor(),
-            transforms.Normalize(mean=mean, std=std)]
+            train_transform = transforms.Compose([
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomRotation(15),
+                transforms.Resize(224),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225])
+            ])
+            test_transform = transforms.Compose([
+                transforms.Resize(224),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225])
+            ])
 
-        task = 0
-        class_names = ['0','1','2','3','4','5','6','7','8','9','10','11','12','13']
+        class_names = [str(i) for i in range(14)]
         MIMIC_train = '/shared/dqwang/scratch/tongchen/MIMIC_small/train'
         MIMIC_test = '/shared/dqwang/scratch/tongchen/MIMIC_small/test'
         train_ann_path = '/shared/dqwang/scratch/tongchen/MIMIC_small/annotation/train_ann.txt'
         test_ann_path = '/shared/dqwang/scratch/tongchen/MIMIC_small/annotation/test_ann.txt'
-        dst_train = MIMIC(MIMIC_train, train_ann_path, cls_ind=task, train=True, transform=transforms.Compose(train_list)) # no augmentation
-        dst_test = MIMIC(MIMIC_test, test_ann_path, cls_ind=task, train=False, transform=transforms.Compose(test_list))
+        dst_train = MIMIC(MIMIC_train, train_ann_path, train=True, transform=train_transform)
+        dst_test = MIMIC(MIMIC_test, test_ann_path, train=False, transform=test_transform)
         # class_names = dst_train.classes
         class_map = {x: x for x in range(num_classes)}
     else:
@@ -511,7 +527,8 @@ def get_network(model, channel, num_classes, im_size=(32, 32), dist=True, no_frz
     elif model == 'ResNet34':
         net = ResNet34(channel=channel, num_classes=num_classes)
     elif model == 'ResNet50':
-        net = ResNet50(channel=channel, num_classes=num_classes)
+        # net = ResNet50(channel=channel, num_classes=num_classes)
+        net = MyResNet50(ck_path='/shared/dqwang/scratch/tongchen/r50_imgpre.pth', num_classes=num_classes, no_frz=no_frz)
     elif model == 'ResNet18BN_AP':
         net = ResNet18BN_AP(channel=channel, num_classes=num_classes)
     elif model == 'ResNet18_AP':
@@ -599,36 +616,7 @@ def get_network(model, channel, num_classes, im_size=(32, 32), dist=True, no_frz
 def get_time():
     return str(time.strftime("[%Y-%m-%d %H:%M:%S]", time.localtime()))
 
-def micro_f1_score(y_true, y_pred, bagnames):
-    """
-    Calculate the micro-averaged F1-score for multi-label classification.
-
-    y_true: tensor of shape (num_samples, num_classes)
-    y_pred: tensor of shape (num_samples, num_classes)
-    bagnames: list of length num_samples, where bagnames[i] is the slide ID for the i-th sample
-    """
-    # pdb.set_trace()
-    true_positives, false_positives, false_negatives = 0, 0, 0
-    bag_ids = list(set(bagnames))
-    for bag_id in bag_ids:
-        # Get the indices of all samples in the current slide
-        indices = [i for i in range(len(bagnames)) if bagnames[i] == bag_id]
-        # pdb.set_trace()
-        # Calculate the true positives, false positives, and false negatives for the samples in the current slide
-        tp = torch.logical_and(y_true[indices], y_pred[indices]).sum(dim=0).float()
-        fp = (y_pred[indices].logical_not() & y_true[indices]).sum(dim=0).float()
-        fn = (y_true[indices].logical_not() & y_pred[indices]).sum(dim=0).float()
-        # Calculate the mean true positives, false positives, and false negatives for the current slide
-        true_positives += tp.mean().item()
-        false_positives += fp.mean().item()
-        false_negatives += fn.mean().item()
-    # pdb.set_trace()
-    precision = true_positives / (true_positives + false_positives + 1e-10)
-    recall = true_positives / (true_positives + false_negatives + 1e-10)
-    f1 = 2 * precision * recall / (precision + recall + 1e-10)
-    return f1
-
-def epoch_mimic(mode, dataloader, net, optimizer, criterion, args, aug, texture=False):
+def epoch_mimic(mode, dataset, dataloader, net, optimizer, scheduler, criterion, args, aug, texture=False):
     """ epoch() for MIMIC dataset """
     loss_avg, num_exp = 0, 0
     net = net.to(args.device)
@@ -639,23 +627,22 @@ def epoch_mimic(mode, dataloader, net, optimizer, criterion, args, aug, texture=
     else:
         net.eval()
 
-    y_pred = []
-    y_true = []
-    bagnames = []
-    
-    for i_batch, datum in tqdm(enumerate(dataloader), total=len(dataloader), desc="Loading data", position=0):
-        img = datum[0].float().to(args.device)
-        lab = datum[1].float().to(args.device)
-        bagname = datum[2]
+    data_infos = dataset.data_infos
+    subject_infos = dataset.subject_infos
 
-        for i in range(len(bagname)):
-            bagnames.append(bagname[i])
+    gt_labels = np.array([data['gt_label'] for data in data_infos])
+    results = {}
+    
+    start = time.time()
+    for i_batch, datum in tqdm(enumerate(dataloader), total=len(dataloader), desc="Loading data", position=0):
+        # pdb.set_trace()
+        img = datum[0].float().to(args.device)
+        # print(datum[1])
+        lab = torch.stack(datum[1]).transpose(0,1).float().to(args.device)
+        # print(lab)
+        bagnames = datum[2]
 
         # pdb.set_trace()
-
-        if mode == "train" and texture:
-            img = torch.cat([torch.stack([torch.roll(im, (torch.randint(args.im_size[0]*args.canvas_size, (1,)), torch.randint(args.im_size[0]*args.canvas_size, (1,))), (1,2))[:,:args.im_size[0],:args.im_size[1]] for im in img]) for _ in range(args.canvas_samples)])
-            lab = torch.cat([lab for _ in range(args.canvas_samples)])
 
         if aug:
             if args.dsa:
@@ -663,19 +650,18 @@ def epoch_mimic(mode, dataloader, net, optimizer, criterion, args, aug, texture=
             else:
                 img = augment(img, args.dc_aug_param, device=args.device)
 
-        n_b = lab.shape[0]
+        n_b = len(datum[2])
 
         if mode =='test':
             with torch.no_grad():
                 output = net(img)
         else:
             output = net(img)
-
-        for i in range(lab.shape[0]):
-            y_true.append(lab[i].int())
         
-        for i in range(output.shape[0]):
-            y_pred.append(output[i].int())
+        # pdb.set_trace()
+
+        for i in range(len(bagnames)):
+            results[bagnames[i]] = results.get(bagnames[i], []) + [output[i].tolist()]
 
         loss = criterion(output, lab)
         loss_avg += loss.item()*n_b
@@ -685,18 +671,35 @@ def epoch_mimic(mode, dataloader, net, optimizer, criterion, args, aug, texture=
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            scheduler.step()
+    
+    dataset_time = time.time() - start
+    print("Time for enumerating the whole dataset: {}".format(dataset_time))
     
     loss_avg /= num_exp
 
-    y_pred = torch.stack(y_pred)
-    y_true = torch.stack(y_true)
-    f1 = micro_f1_score(y_pred, y_true, bagnames)
+    # pdb.set_trace()
 
-    return loss_avg, f1
+    for bag in list(results.keys()):
+        results[bag] = np.array(results[bag])
+    
+    # pdb.set_trace()
+    start = time.time()
+    # num_imgs = len(results)
+    threshold = 0.5
+    bags = list(subject_infos.keys())
+    bag_gt_labels = np.array([gt_labels[subject_infos[b][0]] for b in bags])    # bag_gt_labels.shape = (999, 14)
+    bag_results = np.array([np.mean(results[b], axis=0) for b in bags])
+    bag_class_auc = []
+    for i in range(len(dataset.CLASSES)):
+        auc = roc_auc_score(bag_gt_labels[:, i], bag_results[:, i])
+        bag_class_auc.append(auc)
+    mean_bag_class_auc = np.mean(np.array(bag_class_auc))
+    time_cal = time.time() - start
+    print("Caculate bag_class_auc time: {}".format(time_cal))
+    return loss_avg, bag_class_auc, mean_bag_class_auc
 
 def epoch(mode, dataloader, net, optimizer, criterion, args, aug, texture=False):
-    if args.dataset.startswith('MIMIC'):
-        return epoch_mimic(mode, dataloader, net, optimizer, criterion, args, aug, texture)
         
     loss_avg, acc_avg, num_exp = 0, 0, 0
     net = net.to(args.device)

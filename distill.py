@@ -13,7 +13,7 @@ import random
 from torchvision import datasets, transforms
 from PIL import Image
 from reparam_module import ReparamModule
-
+from torch.optim.lr_scheduler import CosineAnnealingLR
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -163,6 +163,8 @@ def main(args):
     syn_lr = syn_lr.detach().to(args.device).requires_grad_(True)
     optimizer_img = torch.optim.SGD([image_syn], lr=args.lr_img, momentum=args.img_mom, weight_decay=args.img_wd)
     optimizer_lr = torch.optim.SGD([syn_lr], lr=args.lr_lr, momentum=args.lr_mom, weight_decay=args.lr_wd)
+    scheduler_img = CosineAnnealingLR(optimizer_img, T_max=args.Iteration, eta_min=1)
+    scheduler_lr = CosineAnnealingLR(optimizer_lr, T_max=args.Iteration, eta_min=1e-12)
     optimizer_img.zero_grad()
 
     criterion = nn.CrossEntropyLoss().to(args.device)
@@ -469,7 +471,9 @@ def main(args):
         grand_loss.backward()
 
         optimizer_img.step()
+        scheduler_img.step()
         optimizer_lr.step()
+        scheduler_lr.step()
 
         wandb.log({"Grand_Loss": grand_loss.detach().cpu(),
                    "Start_Epoch": start_epoch})
@@ -552,6 +556,9 @@ if __name__ == '__main__':
     parser.add_argument('--lr_mom', type=float, default=0.5, help='the momentum of optimizer_lr')
     parser.add_argument('--img_wd', type=float, default=0, help='the weight decay of optimizer_img')
     parser.add_argument('--lr_wd', type=float, default=0, help='the weight decay of optimize_lr')
+
+    parser.add_argument('--lr_img_decay', type=float, default=1, help='the lr decay of lr_img')
+    parser.add_argument('--lr_lr_decay', type=float, default=1, help='the lr decay of lr_lr')
 
     args = parser.parse_args()
 

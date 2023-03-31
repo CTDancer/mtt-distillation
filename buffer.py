@@ -4,10 +4,11 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 from utils import get_dataset, get_network, get_daparam,\
-    TensorDataset, epoch, ParamDiffAug
+    TensorDataset, epoch, ParamDiffAug, epoch_mimic
 import copy
-
+import time
 import wandb
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -57,11 +58,8 @@ def main(args):
 
     # for ch in range(channel):
     #     print('real images channel %d, mean = %.4f, std = %.4f'%(ch, torch.mean(images_all[:, ch]), torch.std(images_all[:, ch])))
-    
-    if args.dataset.startswith('MIMIC'):
-        criterion = nn.BCEWithLogitsLoss().to(args.device)
-    else:
-        criterion = nn.CrossEntropyLoss().to(args.device)
+
+    criterion = nn.CrossEntropyLoss().to(args.device)
 
     trajectories = []
 
@@ -77,17 +75,22 @@ def main(args):
 
         wandb.init(sync_tensorboard=False,
                 entity='tongchen',
-                project="mtt-buffer50-{}-{}-lr{}-ep{}".format(args.dataset, args.model, args.lr_teacher, args.train_epochs),
-                name='r18-crck-{}'.format(it)
+                project="mtt-buffer50-{}-{}-lr{}-l2{}-mom{}-ep{}".format(args.dataset, args.model, args.lr_teacher, args.l2, args.mom, args.train_epochs),
+                name='r50-{}-{}'.format(args.dataset, it)
             #    name='test'
                )
 
         ''' Train synthetic data '''
         teacher_net = get_network(args.model, channel, num_classes, im_size, no_frz=args.no_frz).to(args.device) # get a random model
+        # if torch.cuda.device_count() > 1: #如果有多个GPU，将模型并行化，用DataParallel来操作。这个过程会将key值加一个"module. ***"
+        #     teacher_net = nn.DataParallel(teacher_net)
+        # for name, module in teacher_net.named_modules():
+        #     print(name, module)
         teacher_net.train()
         lr = args.lr_teacher
-        # teacher_optim = torch.optim.SGD(teacher_net.parameters(), lr=lr, momentum=args.mom, weight_decay=args.l2)  # optimizer_img for synthetic data
-        teacher_optim = torch.optim.Adam(teacher_net.parameters(), lr=lr, betas=(0.9, 0.99), weight_decay=1e-4)
+        teacher_optim = torch.optim.SGD(teacher_net.parameters(), lr=lr, momentum=args.mom, weight_decay=args.l2)  # optimizer_img for synthetic data
+        # teacher_optim = torch.optim.Adam(teacher_net.parameters(), lr=lr, betas=(0.9, 0.99), weight_decay=1e-4)
+        scheduler = CosineAnnealingLR(teacher_optim, T_max=len(dst_train), eta_min=0)
         teacher_optim.zero_grad()
 
         timestamps = []
@@ -100,17 +103,31 @@ def main(args):
             wandb.log({"Progress": e}, step=e)
 
             if args.dataset.startswith('MIMIC'):
-                train_loss, train_f1 = epoch("train", dataloader=trainloader, net=teacher_net, optimizer=teacher_optim,
-                                        criterion=criterion, args=args, aug=False)
-                test_loss, test_f1 = epoch("test", dataloader=testloader, net=teacher_net, optimizer=None,
-                                        criterion=criterion, args=args, aug=False)
+                start = time.time()
+                train_loss, train_bag_class_auc, train_mean = epoch_mimic("train", dataset=dst_train, dataloader=trainloader, net=teacher_net, optimizer=teacher_optim,
+                                        scheduler=scheduler, criterion=criterion, args=args, aug=False)
+                epoch_time = time.time() - start
+                print("Itr: {}\tEpoch: {}\tTime: {}\tTrain mean_bag_class_auc: {}".format(it, e, epoch_time, train_mean))
+
+                start = time.time()
+                test_loss, test_bag_class_auc, test_mean = epoch_mimic("test", dataset=dst_test, dataloader=testloader, net=teacher_net, optimizer=teacher_optim,
+                                        scheduler=scheduler, criterion=criterion, args=args, aug=False)
+                epoch_time = time.time() - start
+                print("Itr: {}\tEpoch: {}\tTime: {}\tTest mean_bag_class_auc: {}".format(it, e, epoch_time, test_mean))
                 
-                print("Itr: {}\tEpoch: {}\tTrain F1: {}\tTest F1: {}".format(it, e, train_f1, test_f1))
+                print(train_bag_class_auc)
+                print(test_bag_class_auc)
 
                 wandb.log({'Train Loss': train_loss}, step=e)
-                wandb.log({'Train F1': train_f1}, step=e)
+                wandb.log({'Train mean_bag_auc': train_mean}, step=e)
+                # for i in range(len(train_bag_class_auc)):
+                #     wandb.log({'bag_auc_{}'.format(i): train_bag_class_auc[i]}, step=e)
+                
                 wandb.log({'Test Loss': test_loss}, step=e)
-                wandb.log({'Test F1': test_f1}, step=e)
+                wandb.log({'Test mean_bag_auc': test_mean}, step=e)
+                for i in range(len(test_bag_class_auc)):
+                    wandb.log({'bag_auc_{}'.format(i): test_bag_class_auc[i]}, step=e)
+                
                 wandb.log({'lr': lr}, step=e)
             
             else:
@@ -125,9 +142,9 @@ def main(args):
                 wandb.log({'Train Loss': train_loss}, step=e)
                 wandb.log({'Train Acc': train_acc}, step=e)
                 wandb.log({'Train Auc': train_auc}, step=e)
-                wandb.log({'Test Loss': test_loss}, step=e)
-                wandb.log({'Test Acc': test_acc}, step=e)
-                wandb.log({'Test Auc': test_auc}, step=e)
+                # wandb.log({'Test Loss': test_loss}, step=e)
+                # wandb.log({'Test Acc': test_acc}, step=e)
+                # wandb.log({'Test Auc': test_auc}, step=e)
                 wandb.log({'lr': lr}, step=e)
 
             timestamps.append([p.detach().cpu() for p in teacher_net.parameters()])
