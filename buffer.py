@@ -75,7 +75,7 @@ def main(args):
 
         wandb.init(sync_tensorboard=False,
                 entity='tongchen',
-                project="mtt-buffer50-{}-{}-lr{}-l2{}-mom{}-ep{}".format(args.dataset, args.model, args.lr_teacher, args.l2, args.mom, args.train_epochs),
+                project="mtt-buffer-{}-{}-lr={}-l2={}-mom={}-ep{}".format(args.dataset, args.model, args.lr_teacher, args.l2, args.mom, args.train_epochs),
                 name='r50-{}-{}'.format(args.dataset, it)
             #    name='test'
                )

@@ -62,8 +62,8 @@ def main(args):
     wandb.init(sync_tensorboard=False,
                project="DatasetDistillation-CRC",
                entity="tongchen",
-               name='CRC-'+args.pix_init+'-ipc_{}-max_start_epoch_{}-syn_steps_{}-data_aug_{}-lr_teacher_{}-lr_lr_{}-lr_img_{}'.format(args.ipc, args.max_start_epoch, args.syn_steps, args.data_aug, args.lr_teacher, args.lr_lr, args.lr_img),
-                # name='test',
+            #    name='CRC-'+args.pix_init+'-ipc_{}-max_start_epoch_{}-syn_steps_{}-data_aug_{}-lr_teacher_{}-lr_lr_{}-lr_img_{}'.format(args.ipc, args.max_start_epoch, args.syn_steps, args.data_aug, args.lr_teacher, args.lr_lr, args.lr_img),
+                name='test',
                config=args,
                )
 
@@ -111,7 +111,10 @@ def main(args):
 
 
     ''' initialize the synthetic data '''
-    label_syn = torch.tensor([np.ones(args.ipc,dtype=np.int_)*i for i in range(num_classes)], dtype=torch.long, requires_grad=False, device=args.device).view(-1) # [0,0,0, 1,1,1, ..., 9,9,9]
+    if args.dataset.startswith('MIMIC'):
+        label_syn = torch.vstack([torch.eye(num_classes, requires_grad=False, device=args.device)[i].repeat(args.ipc, 1) for i in range(num_classes)])
+    else:
+        label_syn = torch.tensor([np.ones(args.ipc,dtype=np.int_)*i for i in range(num_classes)], dtype=torch.long, requires_grad=False, device=args.device).view(-1) # [0,0,0, 1,1,1, ..., 9,9,9]
 
     if args.pix_init == 'noise':
         if args.texture:
@@ -210,7 +213,7 @@ def main(args):
 
     best_std = {m: 0 for m in model_eval_pool}
 
-    best_f1 = {m: 0 for m in model_eval_pool}
+    best_auc = {m: 0 for m in model_eval_pool}
 
 
     for it in range(0, args.Iteration+1):
@@ -229,8 +232,8 @@ def main(args):
                     print('DC augmentation parameters: \n', args.dc_aug_param)
 
                 if args.dataset == "MIMIC":
-                    f1_tests = []
-                    f1_trains = []
+                    auc_tests = []
+                    auc_trains = []
                     for it_eval in range(args.num_eval):
                         net_eval = get_network(model_eval, channel, num_classes, im_size).to(args.device) # get a random model
 
@@ -241,23 +244,23 @@ def main(args):
 
                         args.lr_net = syn_lr.item()
 
-                        _, f1_train, f1_test = evaluate_synset(it, it_eval, net_eval, image_syn_eval, label_syn_eval, testloader, args, texture=args.texture)
-                        f1_trains.append(f1_train)
-                        f1_tests.append(f1_test)
-                    f1_trains = np.array(f1_trains)
-                    f1_tests = np.array(f1_tests)
+                        _, auc_train, auc_test = evaluate_synset(it, it_eval, net_eval, image_syn_eval, label_syn_eval, testloader, args, texture=args.texture)
+                        auc_trains.append(auc_train)
+                        auc_tests.append(auc_test)
+                    auc_trains = np.array(auc_trains)
+                    auc_tests = np.array(auc_tests)
 
-                    f1_test_mean = np.mean(f1_tests)
-                    f1_test_std = np.std(f1_tests)
+                    auc_test_mean = np.mean(auc_tests)
+                    auc_test_std = np.std(auc_tests)
 
-                    if f1_test_mean > best_f1[model_eval]:
-                        best_f1[model_eval] = f1_test_mean
-                        best_std[model_eval] = f1_test_std
+                    if auc_test_mean > best_auc[model_eval]:
+                        best_auc[model_eval] = auc_test_mean
+                        best_std[model_eval] = auc_test_std
                         save_this_it = True
-                    print('Evaluate %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(f1_tests), model_eval, f1_test_mean, f1_test_std))
-                    wandb.log({'F1/{}'.format(model_eval): f1_test_mean}, step=it)
-                    wandb.log({'Std_F1/{}'.format(model_eval): f1_test_std}, step=it)
-                    wandb.log({'Max_F1/{}'.format(model_eval): best_f1[model_eval]}, step=it)    
+                    print('Evaluate %d random %s, mean = %.4f std = %.4f\n-------------------------'%(len(auc_tests), model_eval, auc_test_mean, auc_test_std))
+                    wandb.log({'AUC/{}'.format(model_eval): auc_test_mean}, step=it)
+                    wandb.log({'Std_AUC/{}'.format(model_eval): auc_test_std}, step=it)
+                    wandb.log({'Max_AUC/{}'.format(model_eval): best_auc[model_eval]}, step=it)    
 
                 else:
                     accs_test = []

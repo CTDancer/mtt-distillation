@@ -694,7 +694,7 @@ def epoch_mimic(mode, dataset, dataloader, net, optimizer, scheduler, criterion,
     for i in range(len(dataset.CLASSES)):
         auc = roc_auc_score(bag_gt_labels[:, i], bag_results[:, i])
         bag_class_auc.append(auc)
-    mean_bag_class_auc = np.mean(np.array(bag_class_auc))
+    mean_bag_class_auc = roc_auc_score(bag_gt_labels, bag_results, average='micro')
     time_cal = time.time() - start
     print("Caculate bag_class_auc time: {}".format(time_cal))
     return loss_avg, bag_class_auc, mean_bag_class_auc
@@ -813,17 +813,17 @@ def evaluate_synset(it, it_eval, net, images_train, labels_train, testloader, ar
     start = time.time()
     acc_train_list = []
     loss_train_list = []
-    f1_train_list = []
+    auc_train_list = []
 
     if args.dataset.startswith('MIMIC'):
         for ep in tqdm.tqdm(range(Epoch+1)):
-            loss_train, f1_train = epoch('eval_train', trainloader, net, optimizer, criterion, args, aug=False, texture=texture)
-            f1_train_list.append(f1_train)
+            loss_train, auc_train, _ = epoch_mimic('eval_train', trainloader, net, optimizer, criterion, args, aug=False, texture=texture)
+            auc_train_list.append(auc_train)
             loss_train_list.append(loss_train)
 
             if ep == Epoch:
                 with torch.no_grad():
-                    loss_test, f1_test = epoch('test', testloader, net, optimizer, criterion, args, aug=False)
+                    loss_test, auc_test, _ = epoch_mimic('test', testloader, net, optimizer, criterion, args, aug=False)
 
             if ep in lr_schedule:
                 lr *= 0.1
@@ -852,11 +852,11 @@ def evaluate_synset(it, it_eval, net, images_train, labels_train, testloader, ar
 
     time_train = time.time() - start
     if args.dataset.startswith('MIMIC'):
-        print('%s Evaluate_%02d: epoch = %04d train time = %d s train loss = %.6f train f1 = %.4f, test f1 = %.4f' % (get_time(), it_eval, Epoch, int(time_train), loss_train, f1_train, f1_test))
+        print('%s Evaluate_%02d: epoch = %04d train time = %d s train loss = %.6f train auc = %.4f, test auc = %.4f' % (get_time(), it_eval, Epoch, int(time_train), loss_train, auc_train, auc_test))
         if return_loss:
-            return net, f1_train_list, f1_test, loss_train_list, loss_test
+            return net, auc_train_list, auc_test, loss_train_list, loss_test
         else:
-            return net, f1_train_list, f1_test
+            return net, auc_train_list, auc_test
     else:
         print('%s Evaluate_%02d: epoch = %04d train time = %d s train loss = %.6f train acc = %.4f, test acc = %.4f, test auc = %.4f' % (get_time(), it_eval, Epoch, int(time_train), loss_train, acc_train, acc_test, auc_test))
         if return_loss:
