@@ -831,7 +831,7 @@ def evaluate_synset(it, it_eval, net, images_train, labels_train, test_dataset, 
 
             if ep == Epoch:
                 with torch.no_grad():
-                    loss_test, auc_test, _ = epoch_mimic('test', test_dataset, testloader, net, optimizer, criterion, scheduler, args, aug=False)
+                    loss_test, _, auc_test = epoch_mimic('test', test_dataset, testloader, net, optimizer, criterion, scheduler, args, aug=False)
 
             if ep in lr_schedule:
                 lr *= 0.1
