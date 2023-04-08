@@ -17,7 +17,7 @@ from networks import MLP, ConvNet, LeNet, AlexNet, VGG11BN, VGG11, ResNet18, Res
 
 import numpy as np
 from PIL import Image
-
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from sklearn.metrics import roc_auc_score, f1_score
 from mmcv.cnn.resnet import ResNet
 from collections import defaultdict
@@ -671,7 +671,8 @@ def epoch_mimic(mode, dataset, dataloader, net, optimizer, scheduler, criterion,
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            scheduler.step()
+            if mode == 'train':
+                scheduler.step()
     
     dataset_time = time.time() - start
     print("Time for enumerating the whole dataset: {}".format(dataset_time))
@@ -793,7 +794,7 @@ def epoch(mode, dataloader, net, optimizer, criterion, args, aug, texture=False)
 
 
 
-def evaluate_synset(it, it_eval, net, images_train, labels_train, testloader, args, return_loss=False, texture=False):
+def evaluate_synset(it, it_eval, net, images_train, labels_train, test_dataset, testloader, args, return_loss=False, texture=False):
     net = net.to(args.device)
     images_train = images_train.to(args.device)
     labels_train = labels_train.to(args.device)
@@ -809,6 +810,7 @@ def evaluate_synset(it, it_eval, net, images_train, labels_train, testloader, ar
 
     dst_train = TensorDataset(images_train, labels_train)
     trainloader = torch.utils.data.DataLoader(dst_train, batch_size=args.batch_train, shuffle=True, num_workers=0)
+    scheduler = CosineAnnealingLR(optimizer, T_max=len(dst_train), eta_min=0)
 
     start = time.time()
     acc_train_list = []
@@ -817,13 +819,13 @@ def evaluate_synset(it, it_eval, net, images_train, labels_train, testloader, ar
 
     if args.dataset.startswith('MIMIC'):
         for ep in tqdm(range(Epoch+1)):
-            loss_train, auc_train, _ = epoch_mimic('eval_train', trainloader, net, optimizer, criterion, args, aug=False, texture=texture)
+            loss_train, auc_train, _ = epoch_mimic('eval_train', dst_train, trainloader, net, optimizer, criterion, scheduler, args, aug=False, texture=texture)
             auc_train_list.append(auc_train)
             loss_train_list.append(loss_train)
 
             if ep == Epoch:
                 with torch.no_grad():
-                    loss_test, auc_test, _ = epoch_mimic('test', testloader, net, optimizer, criterion, args, aug=False)
+                    loss_test, auc_test, _ = epoch_mimic('test', test_dataset, testloader, net, optimizer, criterion, scheduler, args, aug=False)
 
             if ep in lr_schedule:
                 lr *= 0.1
