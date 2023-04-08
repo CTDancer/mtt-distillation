@@ -816,7 +816,7 @@ def evaluate_synset(it, it_eval, net, images_train, labels_train, testloader, ar
     auc_train_list = []
 
     if args.dataset.startswith('MIMIC'):
-        for ep in tqdm.tqdm(range(Epoch+1)):
+        for ep in tqdm(range(Epoch+1)):
             loss_train, auc_train, _ = epoch_mimic('eval_train', trainloader, net, optimizer, criterion, args, aug=False, texture=texture)
             auc_train_list.append(auc_train)
             loss_train_list.append(loss_train)
