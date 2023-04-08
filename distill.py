@@ -17,6 +17,8 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+torch.cuda.empty_cache()
+
 def main(args):
 
     if args.zca and args.texture:
@@ -59,13 +61,22 @@ def main(args):
     else:
         zca_trans = None
 
-    wandb.init(sync_tensorboard=False,
-               project="DatasetDistillation-CRC",
-               entity="tongchen",
-            #    name='CRC-'+args.pix_init+'-ipc_{}-max_start_epoch_{}-syn_steps_{}-data_aug_{}-lr_teacher_{}-lr_lr_{}-lr_img_{}'.format(args.ipc, args.max_start_epoch, args.syn_steps, args.data_aug, args.lr_teacher, args.lr_lr, args.lr_img),
-                name='test',
-               config=args,
-               )
+    if args.dataset.startswith('CRC'):
+        wandb.init(sync_tensorboard=False,
+                project="DatasetDistillation-CRC",
+                entity="tongchen",
+                name=args.dataset+'-'+args.pix_init+'-ipc_{}-max_start_epoch_{}-syn_steps_{}-data_aug_{}-lr_teacher_{}-lr_lr_{}-lr_img_{}'.format(args.ipc, args.max_start_epoch, args.syn_steps, args.data_aug, args.lr_teacher, args.lr_lr, args.lr_img),
+                    # name='test',
+                config=args,
+                )
+    else:
+        wandb.init(sync_tensorboard=False,
+                project="DatasetDistillation-MIMIC",
+                entity="tongchen",
+                name=args.dataset+'-'+args.pix_init+'-ipc_{}-max_start_epoch_{}-syn_steps_{}-data_aug_{}-lr_teacher_{}-lr_lr_{}-lr_img_{}'.format(args.ipc, args.max_start_epoch, args.syn_steps, args.data_aug, args.lr_teacher, args.lr_lr, args.lr_img),
+                    # name='test',
+                config=args,
+                )
 
     args = type('', (), {})()
 
