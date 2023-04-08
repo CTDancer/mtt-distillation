@@ -255,12 +255,10 @@ def main(args):
 
                         args.lr_net = syn_lr.item()
 
-                        _, auc_train, auc_test = evaluate_synset(it, it_eval, net_eval, image_syn_eval, label_syn_eval, dst_test, testloader, args, texture=args.texture)
-                        auc_trains.append(auc_train)
+                        _, auc_test = evaluate_synset(it, it_eval, net_eval, image_syn_eval, label_syn_eval, dst_test, testloader, args, texture=args.texture)
                         auc_tests.append(auc_test)
-                    auc_trains = np.array(auc_trains)
+                        
                     auc_tests = np.array(auc_tests)
-
                     auc_test_mean = np.mean(auc_tests)
                     auc_test_std = np.std(auc_tests)
 

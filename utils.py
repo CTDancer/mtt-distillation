@@ -616,7 +616,7 @@ def get_network(model, channel, num_classes, im_size=(32, 32), dist=True, no_frz
 def get_time():
     return str(time.strftime("[%Y-%m-%d %H:%M:%S]", time.localtime()))
 
-def epoch_mimic(mode, dataset, dataloader, net, optimizer, scheduler, criterion, args, aug, texture=False):
+def epoch_mimic(mode, dataset, dataloader, net, optimizer, criterion, scheduler, args, aug, texture=False):
     """ epoch() for MIMIC dataset """
     loss_avg, num_exp = 0, 0
     net = net.to(args.device)
@@ -627,20 +627,26 @@ def epoch_mimic(mode, dataset, dataloader, net, optimizer, scheduler, criterion,
     else:
         net.eval()
 
-    data_infos = dataset.data_infos
-    subject_infos = dataset.subject_infos
+    if mode == 'test' or mode == 'train':
+        data_infos = dataset.data_infos
+        subject_infos = dataset.subject_infos
 
-    gt_labels = np.array([data['gt_label'] for data in data_infos])
+        gt_labels = np.array([data['gt_label'] for data in data_infos])
+
     results = {}
+
+    # if mode=='eval_train':
+    #     pdb.set_trace()
     
     start = time.time()
     for i_batch, datum in tqdm(enumerate(dataloader), total=len(dataloader), desc="Loading data", position=0):
         # pdb.set_trace()
         img = datum[0].float().to(args.device)
-        # print(datum[1])
-        lab = torch.stack(datum[1]).transpose(0,1).float().to(args.device)
-        # print(lab)
-        bagnames = datum[2]
+        if mode == 'test' or mode == 'train':
+            lab = torch.stack(datum[1]).transpose(0,1).float().to(args.device)
+            bagnames = datum[2]
+        else:
+            lab = datum[1].float().to(args.device)
 
         # pdb.set_trace()
 
@@ -650,7 +656,7 @@ def epoch_mimic(mode, dataset, dataloader, net, optimizer, scheduler, criterion,
             else:
                 img = augment(img, args.dc_aug_param, device=args.device)
 
-        n_b = len(datum[2])
+        n_b = lab.shape[0]
 
         if mode =='test':
             with torch.no_grad():
@@ -659,9 +665,9 @@ def epoch_mimic(mode, dataset, dataloader, net, optimizer, scheduler, criterion,
             output = net(img)
         
         # pdb.set_trace()
-
-        for i in range(len(bagnames)):
-            results[bagnames[i]] = results.get(bagnames[i], []) + [output[i].tolist()]
+        if mode == 'test' or mode == 'train':
+            for i in range(len(bagnames)):
+                results[bagnames[i]] = results.get(bagnames[i], []) + [output[i].tolist()]
 
         loss = criterion(output, lab)
         loss_avg += loss.item()*n_b
@@ -680,25 +686,27 @@ def epoch_mimic(mode, dataset, dataloader, net, optimizer, scheduler, criterion,
     loss_avg /= num_exp
 
     # pdb.set_trace()
-
-    for bag in list(results.keys()):
-        results[bag] = np.array(results[bag])
-    
-    # pdb.set_trace()
-    start = time.time()
-    # num_imgs = len(results)
-    threshold = 0.5
-    bags = list(subject_infos.keys())
-    bag_gt_labels = np.array([gt_labels[subject_infos[b][0]] for b in bags])    # bag_gt_labels.shape = (999, 14)
-    bag_results = np.array([np.mean(results[b], axis=0) for b in bags])
-    bag_class_auc = []
-    for i in range(len(dataset.CLASSES)):
-        auc = roc_auc_score(bag_gt_labels[:, i], bag_results[:, i])
-        bag_class_auc.append(auc)
-    mean_bag_class_auc = roc_auc_score(bag_gt_labels, bag_results, average='micro')
-    time_cal = time.time() - start
-    print("Caculate bag_class_auc time: {}".format(time_cal))
-    return loss_avg, bag_class_auc, mean_bag_class_auc
+    if mode == 'test' or mode == 'train':
+        for bag in list(results.keys()):
+            results[bag] = np.array(results[bag])
+        
+        # pdb.set_trace()
+        start = time.time()
+        # num_imgs = len(results)
+        threshold = 0.5
+        bags = list(subject_infos.keys())
+        bag_gt_labels = np.array([gt_labels[subject_infos[b][0]] for b in bags])    # bag_gt_labels.shape = (999, 14)
+        bag_results = np.array([np.mean(results[b], axis=0) for b in bags])
+        bag_class_auc = []
+        for i in range(len(dataset.CLASSES)):
+            auc = roc_auc_score(bag_gt_labels[:, i], bag_results[:, i])
+            bag_class_auc.append(auc)
+        mean_bag_class_auc = roc_auc_score(bag_gt_labels, bag_results, average='micro')
+        time_cal = time.time() - start
+        print("Caculate bag_class_auc time: {}".format(time_cal))
+        return loss_avg, bag_class_auc, mean_bag_class_auc
+    else:
+        return loss_avg
 
 def epoch(mode, dataloader, net, optimizer, criterion, args, aug, texture=False):
         
@@ -815,12 +823,10 @@ def evaluate_synset(it, it_eval, net, images_train, labels_train, test_dataset, 
     start = time.time()
     acc_train_list = []
     loss_train_list = []
-    auc_train_list = []
 
     if args.dataset.startswith('MIMIC'):
         for ep in tqdm(range(Epoch+1)):
-            loss_train, auc_train, _ = epoch_mimic('eval_train', dst_train, trainloader, net, optimizer, criterion, scheduler, args, aug=False, texture=texture)
-            auc_train_list.append(auc_train)
+            loss_train = epoch_mimic('eval_train', dst_train, trainloader, net, optimizer, criterion, scheduler, args, aug=False, texture=texture)
             loss_train_list.append(loss_train)
 
             if ep == Epoch:
@@ -854,11 +860,11 @@ def evaluate_synset(it, it_eval, net, images_train, labels_train, test_dataset, 
 
     time_train = time.time() - start
     if args.dataset.startswith('MIMIC'):
-        print('%s Evaluate_%02d: epoch = %04d train time = %d s train loss = %.6f train auc = %.4f, test auc = %.4f' % (get_time(), it_eval, Epoch, int(time_train), loss_train, auc_train, auc_test))
+        print('%s Evaluate_%02d: epoch = %04d train time = %d s train loss = %.6f test auc = %.4f' % (get_time(), it_eval, Epoch, int(time_train), loss_train, auc_test))
         if return_loss:
-            return net, auc_train_list, auc_test, loss_train_list, loss_test
+            return net, auc_test, loss_train_list, loss_test
         else:
-            return net, auc_train_list, auc_test
+            return net, auc_test
     else:
         print('%s Evaluate_%02d: epoch = %04d train time = %d s train loss = %.6f train acc = %.4f, test acc = %.4f, test auc = %.4f' % (get_time(), it_eval, Epoch, int(time_train), loss_train, acc_train, acc_test, auc_test))
         if return_loss:
