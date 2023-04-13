@@ -451,7 +451,7 @@ def main(args):
                 forward_params = student_params[-1].unsqueeze(0).expand(torch.cuda.device_count(), -1)
             else:
                 forward_params = student_params[-1]
-            x = student_net(x, flat_param=forward_params)
+            x = student_net(**dict(x=x, flat_param=forward_params, buffers=None))
             ce_loss = criterion(x, this_y)
 
             grad = torch.autograd.grad(ce_loss, student_params[-1], create_graph=True)[0]

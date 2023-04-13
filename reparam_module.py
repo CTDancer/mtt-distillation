@@ -4,6 +4,7 @@ import warnings
 import types
 from collections import namedtuple
 from contextlib import contextmanager
+import pdb
 
 
 class ReparamModule(nn.Module):
@@ -136,24 +137,25 @@ class ReparamModule(nn.Module):
         for mn, n, old_b in self._buffer_infos:
             setattr(self._get_module_from_name(mn), n, old_b)
 
-    def _forward_with_param_and_buffers(self, flat_param, buffers, *inputs, **kwinputs):
+    def _forward_with_param_and_buffers(self, flat_param, buffers, d, **kwinputs):
         with self.unflattened_param(flat_param):
             with self.replaced_buffers(buffers):
-                return self.module(*inputs, **kwinputs)
+                return self.module(x, **kwinputs)
 
-    def _forward_with_param(self, flat_param, *inputs, **kwinputs):
+    def _forward_with_param(self, flat_param, x, **kwinputs):
         with self.unflattened_param(flat_param):
-            return self.module(*inputs, **kwinputs)
+            return self.module(x, **kwinputs)
 
-    def forward(self, *inputs, flat_param=None, buffers=None, **kwinputs):
+    def forward(self, x, flat_param=None, buffers=None, **kwinputs):
         flat_param = torch.squeeze(flat_param)
         # print("PARAMS ON DEVICE: ", flat_param.get_device())
         # print("DATA ON DEVICE: ", inputs[0].get_device())
         # flat_param.to("cuda:{}".format(inputs[0].get_device()))
         # self.module.to("cuda:{}".format(inputs[0].get_device()))
+        # pdb.set_trace()
         if flat_param is None:
             flat_param = self.flat_param
         if buffers is None:
-            return self._forward_with_param(flat_param, *inputs, **kwinputs)
+            return self._forward_with_param(flat_param, x, **kwinputs)
         else:
-            return self._forward_with_param_and_buffers(flat_param, tuple(buffers), *inputs, **kwinputs)
+            return self._forward_with_param_and_buffers(flat_param, tuple(buffers), x, **kwinputs)
