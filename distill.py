@@ -15,6 +15,8 @@ from PIL import Image
 from reparam_module import ReparamModule
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import warnings
+import pdb
+
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 torch.cuda.empty_cache()
@@ -100,8 +102,8 @@ def main(args):
     print('Evaluation model pool: ', model_eval_pool)
 
     ''' organize the real dataset '''
-    def get_images(c, n):  # get random n images from class c
-        train_pth = '/home/dqwang/CRC_DX_train'
+    def get_images_CRC(c, n):  # get random n images from class c
+        train_pth = '/shared/dqwang/datasets/CRC/CRC_DX_train'
         subfolder_pth = os.path.join(train_pth, os.listdir(train_pth)[c])
         file_list = os.listdir(subfolder_pth) # get the list of file names in the folder
         selected_files = random.sample(file_list, n)
@@ -123,6 +125,29 @@ def main(args):
         images = torch.cat(images, dim=0).to("cpu")
         
         return images
+
+    def get_images_MIMIC(c, n, dataset):
+        # pdb.set_trace()
+        candidate_indices = []
+        images = []
+        data_infos = dataset.data_infos
+        for i, data_info in enumerate(data_infos):
+            if data_info['gt_label'][c] != 1:
+                continue
+            candidate_indices.append(i)
+        # pdb.set_trace()
+        if not candidate_indices:
+            return None
+        else:
+            random.shuffle(candidate_indices)
+            for i in candidate_indices[:n]:
+                img = Image.open(data_infos[i]['image_path']).convert('RGB')
+                if dataset.transform is not None:
+                    img = dataset.transform(img)
+                images.append(img)
+            images = torch.cat(images, dim=0).to("cpu")
+            return images
+
 
 
     ''' initialize the synthetic data '''
@@ -162,6 +187,10 @@ def main(args):
     syn_lr = torch.tensor(args.lr_teacher).to(args.device)
 
     if args.pix_init == 'real':
+        if args.texture:
+            image_syn = torch.randn(size=(num_classes * args.ipc, channel, im_size[0]*args.canvas_size, im_size[1]*args.canvas_size), dtype=torch.float)
+        else:
+            image_syn = torch.randn(size=(num_classes * args.ipc, channel, im_size[0], im_size[1]), dtype=torch.float)
         print('initialize synthetic data from random real images')
         if args.texture:
             for c in range(num_classes):
@@ -171,7 +200,10 @@ def main(args):
                         j * im_size[1]:(j + 1) * im_size[1]] = torch.cat(
                             [get_images(c, 1).detach().data for s in range(args.ipc)])
         for c in range(num_classes):
-            image_syn.data[c * args.ipc:(c + 1) * args.ipc] = get_images(c, args.ipc).detach().data
+            if args.dataset.startswith('CRC'):
+                image_syn.data[c * args.ipc:(c + 1) * args.ipc] = get_images_CRC(c, args.ipc).detach().data
+            elif args.dataset.startswith('MIMIC'):
+                image_syn.data[c * args.ipc:(c + 1) * args.ipc] = get_images_MIMIC(c, args.ipc, dst_train).detach().data
     else:
         print('initialize synthetic data from random noise')
 
