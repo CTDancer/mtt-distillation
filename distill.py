@@ -19,7 +19,9 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 torch.cuda.empty_cache()
 
-torch.manual_seed(42)
+random_seed = 3407
+
+torch.manual_seed(random_seed)
 
 def main(args):
 
@@ -67,7 +69,7 @@ def main(args):
         wandb.init(sync_tensorboard=False,
                 project="DatasetDistillation-CRC",
                 entity="tongchen",
-                name=args.dataset+'-'+args.pix_init+'-ipc_{}-max_start_epoch_{}-syn_steps_{}-data_aug_{}-lr_teacher_{}-lr_lr_{}-lr_img_{}'.format(args.ipc, args.max_start_epoch, args.syn_steps, args.data_aug, args.lr_teacher, args.lr_lr, args.lr_img),
+                name=args.pix_init+'-ipc_{}-syn_steps_{}-expert_epochs_{}-data_aug_{}-lr_img_{}-seed_{}'.format(args.ipc, args.syn_steps, args.expert_epochs, args.data_aug, args.lr_img, random_seed),
                     # name='test',
                 config=args,
                 )
