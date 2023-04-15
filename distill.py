@@ -15,15 +15,11 @@ from PIL import Image
 from reparam_module import ReparamModule
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import warnings
-import pdb
-
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 torch.cuda.empty_cache()
 
-random_seed = 3407
-
-torch.manual_seed(random_seed)
+torch.manual_seed(args.seed)
 
 def main(args):
 
@@ -71,7 +67,7 @@ def main(args):
         wandb.init(sync_tensorboard=False,
                 project="DatasetDistillation-CRC",
                 entity="tongchen",
-                name=args.pix_init+'-ipc_{}-syn_steps_{}-expert_epochs_{}-data_aug_{}-lr_img_{}-seed_{}'.format(args.ipc, args.syn_steps, args.expert_epochs, args.data_aug, args.lr_img, random_seed),
+                name=args.pix_init+'-ipc_{}-syn_steps_{}-expert_epochs_{}-data_aug_{}-lr_img_{}-seed_{}'.format(args.ipc, args.syn_steps, args.expert_epochs, args.data_aug, args.lr_img, args.seed),
                     # name='test',
                 config=args,
                 )
@@ -79,7 +75,7 @@ def main(args):
         wandb.init(sync_tensorboard=False,
                 project="DatasetDistillation-MIMIC",
                 entity="tongchen",
-                name=args.dataset+'-'+args.pix_init+'-ipc_{}-max_start_epoch_{}-syn_steps_{}-data_aug_{}-lr_teacher_{}-lr_lr_{}-lr_img_{}'.format(args.ipc, args.max_start_epoch, args.syn_steps, args.data_aug, args.lr_teacher, args.lr_lr, args.lr_img),
+                name=args.pix_init+'-ipc_{}-syn_steps_{}-data_aug_{}-lr_teacher_{}-lr_lr_{}-lr_img_{}-seed_{}'.format(args.ipc args.syn_steps, args.data_aug, args.lr_teacher, args.lr_lr, args.lr_img, args.seed),
                     # name='test',
                 config=args,
                 )
@@ -102,8 +98,8 @@ def main(args):
     print('Evaluation model pool: ', model_eval_pool)
 
     ''' organize the real dataset '''
-    def get_images_CRC(c, n):  # get random n images from class c
-        train_pth = '/shared/dqwang/datasets/CRC/CRC_DX_train'
+    def get_images(c, n):  # get random n images from class c
+        train_pth = '/home/dqwang/CRC_DX_train'
         subfolder_pth = os.path.join(train_pth, os.listdir(train_pth)[c])
         file_list = os.listdir(subfolder_pth) # get the list of file names in the folder
         selected_files = random.sample(file_list, n)
@@ -126,29 +122,6 @@ def main(args):
         
         return images
 
-    def get_images_MIMIC(c, n, dataset):
-        # pdb.set_trace()
-        candidate_indices = []
-        images = []
-        data_infos = dataset.data_infos
-        for i, data_info in enumerate(data_infos):
-            if data_info['gt_label'][c] != 1:
-                continue
-            candidate_indices.append(i)
-        # pdb.set_trace()
-        if not candidate_indices:
-            return None
-        else:
-            random.shuffle(candidate_indices)
-            for i in candidate_indices[:n]:
-                img = Image.open(data_infos[i]['image_path']).convert('RGB')
-                if dataset.transform is not None:
-                    img = dataset.transform(img)
-                images.append(img)
-            images = torch.cat(images, dim=0).to("cpu")
-            return images
-
-
 
     ''' initialize the synthetic data '''
     if args.dataset.startswith('MIMIC'):
@@ -170,6 +143,20 @@ def main(args):
             image_syn = [torch.randn(channel, im_size[0], im_size[1]) * torch.tensor([0.229, 0.224, 0.225]).view(channel, 1, 1) + torch.tensor([0.485, 0.456, 0.406]).view(channel, 1, 1) for _ in range(num_classes*args.ipc)]
         image_syn = torch.stack(image_syn)
 
+    if args.pix_init == 'real':
+        print('initialize synthetic data from random real images')
+        if args.texture:
+            for c in range(num_classes):
+                for i in range(args.canvas_size):
+                    for j in range(args.canvas_size):
+                        image_syn.data[c * args.ipc:(c + 1) * args.ipc, :, i * im_size[0]:(i + 1) * im_size[0],
+                        j * im_size[1]:(j + 1) * im_size[1]] = torch.cat(
+                            [get_images(c, 1).detach().data for s in range(args.ipc)])
+        for c in range(num_classes):
+            image_syn.data[c * args.ipc:(c + 1) * args.ipc] = get_images(c, args.ipc).detach().data
+    else:
+        print('initialize synthetic data from random noise')
+
     # data augmentation
     if args.data_aug:
         transform = transforms.Compose([
@@ -185,28 +172,6 @@ def main(args):
         image_syn = torch.stack(augmented_images)
 
     syn_lr = torch.tensor(args.lr_teacher).to(args.device)
-
-    if args.pix_init == 'real':
-        if args.texture:
-            image_syn = torch.randn(size=(num_classes * args.ipc, channel, im_size[0]*args.canvas_size, im_size[1]*args.canvas_size), dtype=torch.float)
-        else:
-            image_syn = torch.randn(size=(num_classes * args.ipc, channel, im_size[0], im_size[1]), dtype=torch.float)
-        print('initialize synthetic data from random real images')
-        if args.texture:
-            for c in range(num_classes):
-                for i in range(args.canvas_size):
-                    for j in range(args.canvas_size):
-                        image_syn.data[c * args.ipc:(c + 1) * args.ipc, :, i * im_size[0]:(i + 1) * im_size[0],
-                        j * im_size[1]:(j + 1) * im_size[1]] = torch.cat(
-                            [get_images(c, 1).detach().data for s in range(args.ipc)])
-        for c in range(num_classes):
-            if args.dataset.startswith('CRC'):
-                image_syn.data[c * args.ipc:(c + 1) * args.ipc] = get_images_CRC(c, args.ipc).detach().data
-            elif args.dataset.startswith('MIMIC'):
-                image_syn.data[c * args.ipc:(c + 1) * args.ipc] = get_images_MIMIC(c, args.ipc, dst_train).detach().data
-    else:
-        print('initialize synthetic data from random noise')
-
 
     ''' training '''
     image_syn = image_syn.detach().to(args.device).requires_grad_(True)
@@ -607,6 +572,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--lr_img_decay', type=float, default=1, help='the lr decay of lr_img')
     parser.add_argument('--lr_lr_decay', type=float, default=1, help='the lr decay of lr_lr')
+
+    parser.add_argument('--seed', type=int, default=0, help='random seed for torch.randn()')
 
     args = parser.parse_args()
 
