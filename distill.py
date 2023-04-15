@@ -208,8 +208,12 @@ def main(args):
     syn_lr = syn_lr.detach().to(args.device).requires_grad_(True)
     optimizer_img = torch.optim.SGD([image_syn], lr=args.lr_img, momentum=args.img_mom, weight_decay=args.img_wd)
     optimizer_lr = torch.optim.SGD([syn_lr], lr=args.lr_lr, momentum=args.lr_mom, weight_decay=args.lr_wd)
-    scheduler_img = CosineAnnealingLR(optimizer_img, T_max=args.Iteration, eta_min=0)
-    scheduler_lr = CosineAnnealingLR(optimizer_lr, T_max=args.Iteration, eta_min=1e-7)
+    if args.dataset.startswith('MIMIC'):
+        scheduler_img = CosineAnnealingLR(optimizer_img, T_max=args.Iteration, eta_min=0)
+        scheduler_lr = CosineAnnealingLR(optimizer_lr, T_max=args.Iteration, eta_min=1e-7)
+    else:
+        scheduler_img = CosineAnnealingLR(optimizer_img, T_max=args.Iteration, eta_min=0)
+        scheduler_lr = CosineAnnealingLR(optimizer_lr, T_max=args.Iteration, eta_min=1e-12)
     optimizer_img.zero_grad()
 
     criterion = nn.CrossEntropyLoss().to(args.device)
