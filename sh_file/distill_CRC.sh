@@ -18,4 +18,7 @@ CUDA_VISIBLE_DEVICES=1,2 python distill.py --dataset=CRC1 --model=ResNet18 \
  --lr_wd=0 \
  --img_mom=0.5 \
  --lr_mom=0.5 \
+ --seed=3407 \
+ --client=0 \
+ --data_aug \
  --buffer_path=/shared/dqwang/scratch/tongchen/buffer_long --data_path={path_to_dataset}

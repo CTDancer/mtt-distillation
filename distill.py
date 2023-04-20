@@ -67,7 +67,7 @@ def main(args):
         wandb.init(sync_tensorboard=False,
                 project="DatasetDistillation-CRC",
                 entity="tongchen",
-                name=args.pix_init+'-ipc_{}-syn_steps_{}-expert_epochs_{}-data_aug_{}-lr_img_{}-seed_{}'.format(args.ipc, args.syn_steps, args.expert_epochs, args.data_aug, args.lr_img, args.seed),
+                name='client{}-'args.pix_init+'-ipc_{}-syn_steps_{}-expert_epochs_{}-data_aug_{}-lr_img_{}-seed_{}'.format(args.client, args.ipc, args.syn_steps, args.expert_epochs, args.data_aug, args.lr_img, args.seed),
                     # name='test',
                 config=args,
                 )
@@ -608,6 +608,8 @@ if __name__ == '__main__':
     parser.add_argument('--lr_lr_decay', type=float, default=1, help='the lr decay of lr_lr')
 
     parser.add_argument('--seed', type=int, default=0, help='random seed for torch.randn()')
+
+    parser.add_argument('--client', type=int, default=-1, help='the index of client. default is the whole dataset')
 
     args = parser.parse_args()
 

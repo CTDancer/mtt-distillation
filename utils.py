@@ -369,7 +369,10 @@ def get_dataset(dataset, data_path, batch_size=1, subset="imagenette", args=None
         CRC_train = '/shared/dqwang/datasets/CRC/CRC_DX_train'
         CRC_test = '/shared/dqwang/datasets/CRC/CRC_DX_test'
         # train_ann_path = '/shared/dqwang/datasets/CRC/annotation/train_ann.txt'
-        train_ann_path = '/shared/dqwang/datasets/CRC/annotation/patch_split/msi/train_50.txt'
+        if args.client >= 0:
+            train_ann_path = '/shared/dqwang/datasets/CRC/annotation/federate/split_5_1/train_' + str(args.client) + '.txt'
+        else:
+            train_ann_path = '/shared/dqwang/datasets/CRC/annotation/patch_split/msi/train_50.txt'
         test_ann_path = '/shared/dqwang/datasets/CRC/annotation/test_ann.txt'
         dst_train = CRCK(CRC_train, train_ann_path, cls_ind=task, train=True, transform=transform) # no augmentation
         dst_test = CRCK(CRC_test, test_ann_path, cls_ind=task, train=False, transform=transform)
