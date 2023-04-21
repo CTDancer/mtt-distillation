@@ -142,7 +142,7 @@ def main(args):
                 if dataset.transform is not None:
                     img = dataset.transform(img)
                 images.append(img)
-            images = torch.cat(images, dim=0).to("cpu")
+            images = torch.stack(images, dim=0).to("cpu")
             return images
 
 
