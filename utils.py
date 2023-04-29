@@ -99,7 +99,7 @@ class MIMIC(Dataset):
         self.dataset_size = None
         self.subject_infos = {}
         self.data_infos = self.load_annotations()
-        self.CLASSES = [str(i) for i in range(14)]
+        self.CLASSES = [str(i) for i in range(10)]
 
     def __getitem__(self, index):
         img = Image.open(self.data_infos[index]['image_path']).convert('RGB')
@@ -134,6 +134,7 @@ class MIMIC(Dataset):
                 subject_id, study_id, filename = filename.split('_')
                 img_path = os.path.join(self.data_prefix, filename)
                 bagname = f'{subject_id}_{study_id}'
+                class_name = class_name[:5] + class_name[7:10] + class_name[12:]
                 gt_label = [int(label) for label in class_name]  # class_to_idx
                 info = {
                     'image_path': img_path,
@@ -382,7 +383,7 @@ def get_dataset(dataset, data_path, batch_size=1, subset="imagenette", args=None
     elif dataset=='MIMIC':
         channel = 3
         im_size = (224, 224)
-        num_classes = 14
+        num_classes = 10
         mean=[0.485, 0.456, 0.406]
         std=[0.229, 0.224, 0.225]
 
@@ -404,7 +405,7 @@ def get_dataset(dataset, data_path, batch_size=1, subset="imagenette", args=None
                                     std=[0.229, 0.224, 0.225])
             ])
 
-        class_names = [str(i) for i in range(14)]
+        class_names = [str(i) for i in range(10)]
         MIMIC_train = '/shared/dqwang/scratch/tongchen/MIMIC/train'
         MIMIC_test = '/shared/dqwang/scratch/tongchen/MIMIC/test'
         train_ann_path = '/shared/dqwang/scratch/yunkunzhang/mimic_multi-label_ann/train.txt'
@@ -500,6 +501,47 @@ class TensorDataset(Dataset):
     def __len__(self):
         return self.images.shape[0]
 
+
+def test_client(ipc, num_clients, net, client_path, args):
+    channel = 3
+    im_size = (224, 224)
+    num_classes = 2
+    mean = [0.485, 0.456, 0.406]
+    std = [0.229, 0.224, 0.225]
+
+    if args.zca:
+        transform = transforms.Compose([transforms.ToTensor()])
+    else:
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+    task = int(args.dataset[3])-1
+    class_names = ['MSI', 'MSS']
+    CRC_test = '/shared/dqwang/datasets/CRC/CRC_DX_test'
+    test_ann_path = '/shared/dqwang/datasets/CRC/annotation/test_ann.txt'
+    dst_test = CRCK(CRC_test, test_ann_path, cls_ind=task, train=False, transform=transform)
+    testloader = torch.utils.data.DataLoader(dst_test, batch_size=256, shuffle=False, num_workers=0)
+
+    images_train = []
+    labels_train = []
+
+    for i in range(num_clients):
+        img_tensor = torch.load(client_path+'/client'+str(i)+'.pt')
+        for j in range(2*ipc):
+            images_train.append(img_tensor[j])
+            if j < ipc :
+                labels_train.append(0)
+            else:
+                labels_train.append(1)
+
+    # pdb.set_trace()
+
+    images_train = torch.stack(images_train)
+    labels_train = torch.tensor(labels_train)
+
+    it = 0
+    it_eval = 0
+
+    _, _, acc_test, auc_test = evaluate_synset(it, it_eval, net, images_train, labels_train, dst_test, testloader, args, texture=args.texture) 
+    print("ACC = {}\nAUC = {}".format(acc_test, auc_test))
 
 
 def get_default_convnet_setting():

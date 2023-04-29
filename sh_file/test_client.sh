@@ -1,0 +1,11 @@
+CUDA_VISIBLE_DEVICES=0,1,2,3 python test_client.py \
+ --dataset=CRC1 \
+ --model=ResNet18 \
+ --ipc=3 \
+ --num_eval=3 \
+ --epoch_eval_train=500 \
+ --batch_train=32 \
+ --max_start_epoch=1 \
+ --lr_lr=1e-09 \
+ --lr_teacher=1e-8 \
+ --seed=3407
