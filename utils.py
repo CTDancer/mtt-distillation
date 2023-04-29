@@ -99,7 +99,7 @@ class MIMIC(Dataset):
         self.dataset_size = None
         self.subject_infos = {}
         self.data_infos = self.load_annotations()
-        self.CLASSES = [str(i) for i in range(10)]
+        self.CLASSES = [str(i) for i in range(14)]
 
     def __getitem__(self, index):
         img = Image.open(self.data_infos[index]['image_path']).convert('RGB')
@@ -134,7 +134,6 @@ class MIMIC(Dataset):
                 subject_id, study_id, filename = filename.split('_')
                 img_path = os.path.join(self.data_prefix, filename)
                 bagname = f'{subject_id}_{study_id}'
-                class_name = class_name[:5] + class_name[7:10] + class_name[12:]
                 gt_label = [int(label) for label in class_name]  # class_to_idx
                 info = {
                     'image_path': img_path,
@@ -383,7 +382,7 @@ def get_dataset(dataset, data_path, batch_size=1, subset="imagenette", args=None
     elif dataset=='MIMIC':
         channel = 3
         im_size = (224, 224)
-        num_classes = 10
+        num_classes = 14
         mean=[0.485, 0.456, 0.406]
         std=[0.229, 0.224, 0.225]
 
@@ -405,7 +404,7 @@ def get_dataset(dataset, data_path, batch_size=1, subset="imagenette", args=None
                                     std=[0.229, 0.224, 0.225])
             ])
 
-        class_names = [str(i) for i in range(10)]
+        class_names = [str(i) for i in range(14)]
         MIMIC_train = '/shared/dqwang/scratch/tongchen/MIMIC/train'
         MIMIC_test = '/shared/dqwang/scratch/tongchen/MIMIC/test'
         train_ann_path = '/shared/dqwang/scratch/yunkunzhang/mimic_multi-label_ann/train.txt'
@@ -453,32 +452,66 @@ def get_dataset(dataset, data_path, batch_size=1, subset="imagenette", args=None
         exit('unknown dataset: %s'%dataset)
 
     if args.zca:
-        images = []
-        labels = []
-        print("Train ZCA")
-        for i in tqdm.tqdm(range(len(dst_train))):
-            im, lab = dst_train[i]
-            images.append(im)
-            labels.append(lab)
-        images = torch.stack(images, dim=0).to(args.device)
-        labels = torch.tensor(labels, dtype=torch.long, device="cpu")
-        zca = K.enhance.ZCAWhitening(eps=0.1, compute_inv=True)
-        zca.fit(images)
-        zca_images = zca(images).to("cpu")
-        dst_train = TensorDataset(zca_images, labels)
+        if args.dataset.startswith('CRC') or args.dataset.startswith('MIMIC'):
+            images = []
+            labels = []
+            bagnames = []
+            print("Train ZCA")
+            for i in tqdm(range(len(dst_train))):
+                im, lab, bagname = dst_train[i]
+                images.append(im)
+                labels.append(lab)
+                bagnames.append(bagname)
+            images = torch.stack(images, dim=0).to(args.device)
+            labels = torch.tensor(labels, dtype=torch.long, device="cpu")
+            # pdb.set_trace()
+            # bagnames = torch.tensor(bagnames)
+            zca = K.enhance.ZCAWhitening(eps=0.1, compute_inv=True)
+            zca.fit(images)
+            zca_images = zca(images).to("cpu")
+            dst_train = BagDataset(zca_images, labels, bagnames)
 
-        images = []
-        labels = []
-        print("Test ZCA")
-        for i in tqdm.tqdm(range(len(dst_test))):
-            im, lab = dst_test[i]
-            images.append(im)
-            labels.append(lab)
-        images = torch.stack(images, dim=0).to(args.device)
-        labels = torch.tensor(labels, dtype=torch.long, device="cpu")
+            images = []
+            labels = []
+            bagnames = []
+            print("Test ZCA")
+            for i in tqdm.tqdm(range(len(dst_test))):
+                im, lab, bagname = dst_test[i]
+                images.append(im)
+                labels.append(lab)
+                bagnames.append(bagname)
+            images = torch.stack(images, dim=0).to(args.device)
+            labels = torch.tensor(labels, dtype=torch.long, device="cpu")
+            # bagnames = torch.tensor(bagnames)
+            zca_images = zca(images).to("cpu")
+            dst_test = BagDataset(zca_images, labels, bagnames)
+        else:
+            images = []
+            labels = []
+            print("Train ZCA")
+            for i in tqdm(range(len(dst_train))):
+                im, lab = dst_train[i]
+                images.append(im)
+                labels.append(lab)
+            images = torch.stack(images, dim=0).to(args.device)
+            labels = torch.tensor(labels, dtype=torch.long, device="cpu")
+            zca = K.enhance.ZCAWhitening(eps=0.1, compute_inv=True)
+            zca.fit(images)
+            zca_images = zca(images).to("cpu")
+            dst_train = TensorDataset(zca_images, labels)
 
-        zca_images = zca(images).to("cpu")
-        dst_test = TensorDataset(zca_images, labels)
+            images = []
+            labels = []
+            print("Test ZCA")
+            for i in tqdm.tqdm(range(len(dst_test))):
+                im, lab = dst_test[i]
+                images.append(im)
+                labels.append(lab)
+            images = torch.stack(images, dim=0).to(args.device)
+            labels = torch.tensor(labels, dtype=torch.long, device="cpu")
+
+            zca_images = zca(images).to("cpu")
+            dst_test = TensorDataset(zca_images, labels)
 
         args.zca_trans = zca
 
