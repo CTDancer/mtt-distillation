@@ -536,6 +536,14 @@ class TensorDataset(Dataset):
 
 
 def test_client(ipc, num_clients, net, client_path, args):
+    wandb.init(sync_tensorboard=False,
+                project="MTT-TestClients",
+                entity="tongchen",
+                name='epoch_eval_train={}'.format(args.epoch_eval_train),
+                    # name='test',
+                config=args,
+                )
+    
     channel = 3
     im_size = (224, 224)
     num_classes = 2
@@ -555,27 +563,187 @@ def test_client(ipc, num_clients, net, client_path, args):
 
     images_train = []
     labels_train = []
+    lrs = []
 
     for i in range(num_clients):
-        img_tensor = torch.load(client_path+'/client'+str(i)+'.pt')
+        img_tensor = torch.load(client_path+'/images/client'+str(i)+'.pt')
+        images_train.append(img_tensor)
+        labels = []
         for j in range(2*ipc):
-            images_train.append(img_tensor[j])
             if j < ipc :
-                labels_train.append(0)
+                labels.append(0)
             else:
-                labels_train.append(1)
+                labels.append(1)
+        labels = torch.tensor(labels)
+        labels_train.append(labels)
+        lr = torch.load(client_path+'/lrs/client'+str(i)+'.pt')
+        lrs.append(lr)
 
     # pdb.set_trace()
-
     images_train = torch.stack(images_train)
-    labels_train = torch.tensor(labels_train)
+    labels_train = torch.stack(labels_train)
 
     it = 0
     it_eval = 0
+    
+    net = net.to(args.device)
+    Epoch = int(args.epoch_eval_train)
+    lr_schedule = [Epoch//2+1]
+    criterion = nn.CrossEntropyLoss().to(args.device)
+    loss_avg, acc_avg, num_exp = 0, 0, 0
+    
+    net.eval()
+    optimizers = []
+    for i in range(0, num_clients):
+        optimizer = torch.optim.SGD(net.parameters(), lr=lrs[i], momentum=0.9, weight_decay=0.0005)
+        optimizers.append(optimizer)
 
-    _, _, acc_test, auc_test = evaluate_synset(it, it_eval, net, images_train, labels_train, dst_test, testloader, args, texture=args.texture) 
-    print("ACC = {}\nAUC = {}".format(acc_test, auc_test))
+    for ep in tqdm(range(Epoch+1)):
+        # train the network using distilled dataset
+        for i in range(0, num_clients):
+            img = images_train[i].to(args.device)
+            lab = labels_train[i].to(args.device)
+            optimizer = optimizers[i]
 
+            n_b = lab.shape[0]
+
+            output = net(img)
+            loss = criterion(output, lab)
+            acc = np.sum(np.equal(np.argmax(output.cpu().data.numpy(), axis=-1), lab.cpu().data.numpy()))
+
+            loss_avg += loss.item()*n_b
+            acc_avg += acc
+            num_exp += n_b
+            
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        
+        loss_avg /= num_exp
+        acc_avg /= num_exp
+        
+        wandb.log({"loss": loss_avg}, step=ep)
+        wandb.log({"acc": acc_avg}, step=ep)
+        
+        if ep == Epoch:
+            # this optimizer doesn't matter, won't be used in epoch
+            with torch.no_grad():
+                loss_test, acc_test, auc_test = epoch('test', testloader, net, optimizers[0], criterion, args, aug=False)
+                wandb.log({"Test Loss": loss_test})
+                wandb.log({"Test ACC": acc_test})
+                wandb.log({"Test AUC": auc_test})
+
+        if ep in lr_schedule:
+            optimizer = torch.optim.SGD(net.parameters(), lr=lrs[i]*0.1, momentum=0.9, weight_decay=0.0005)
+            optimizers.append(optimizer)
+            
+    wandb.finish()
+    
+def test_client_weighted(ipc, num_clients, net, client_path, args):
+    cnt = [14646, 13004, 17960, 23209, 24589]
+    weight = cnt / np.sum(cnt)
+    wandb.init(sync_tensorboard=False,
+                project="MTT-TestClients",
+                entity="tongchen",
+                name='weighted-epoch_eval_train={}'.format(args.epoch_eval_train),
+                    # name='test',
+                config=args,
+                )
+    
+    channel = 3
+    im_size = (224, 224)
+    num_classes = 2
+    mean = [0.485, 0.456, 0.406]
+    std = [0.229, 0.224, 0.225]
+
+    if args.zca:
+        transform = transforms.Compose([transforms.ToTensor()])
+    else:
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=mean, std=std)])
+    task = int(args.dataset[3])-1
+    class_names = ['MSI', 'MSS']
+    CRC_test = '/shared/dqwang/datasets/CRC/CRC_DX_test'
+    test_ann_path = '/shared/dqwang/datasets/CRC/annotation/test_ann.txt'
+    dst_test = CRCK(CRC_test, test_ann_path, cls_ind=task, train=False, transform=transform)
+    testloader = torch.utils.data.DataLoader(dst_test, batch_size=256, shuffle=False, num_workers=0)
+
+    images_train = []
+    labels_train = []
+    lrs = []
+
+    for i in range(num_clients):
+        img_tensor = torch.load(client_path+'/images/client'+str(i)+'.pt')
+        images_train.append(img_tensor)
+        labels = []
+        for j in range(2*ipc):
+            if j < ipc :
+                labels.append(0)
+            else:
+                labels.append(1)
+        labels = torch.tensor(labels)
+        labels_train.append(labels)
+        lr = torch.load(client_path+'/lrs/client'+str(i)+'.pt')
+        lrs.append(lr)
+
+    # pdb.set_trace()
+    images_train = torch.stack(images_train)
+    labels_train = torch.stack(labels_train)
+
+    it = 0
+    it_eval = 0
+    
+    net = net.to(args.device)
+    Epoch = int(args.epoch_eval_train)
+    lr_schedule = [Epoch//2+1]
+    criterion = nn.CrossEntropyLoss().to(args.device)
+    loss_avg, acc_avg, num_exp = 0, 0, 0
+    
+    net.eval()
+    optimizers = []
+    for i in range(0, num_clients):
+        optimizer = torch.optim.SGD(net.parameters(), lr=lrs[i]*weight[i], momentum=0.9, weight_decay=0.0005)
+        optimizers.append(optimizer)
+
+    for ep in tqdm(range(Epoch+1)):
+        # train the network using distilled dataset
+        for i in range(0, num_clients):
+            img = images_train[i].to(args.device)
+            lab = labels_train[i].to(args.device)
+            optimizer = optimizers[i]
+
+            n_b = lab.shape[0]
+
+            output = net(img)
+            loss = criterion(output, lab)
+            acc = np.sum(np.equal(np.argmax(output.cpu().data.numpy(), axis=-1), lab.cpu().data.numpy()))
+
+            loss_avg += loss.item()*n_b
+            acc_avg += acc
+            num_exp += n_b
+            
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        
+        loss_avg /= num_exp
+        acc_avg /= num_exp
+        
+        wandb.log({"loss": loss_avg}, step=ep)
+        wandb.log({"acc": acc_avg}, step=ep)
+        
+        if ep == Epoch:
+            # this optimizer doesn't matter, won't be used in epoch
+            with torch.no_grad():
+                loss_test, acc_test, auc_test = epoch('test', testloader, net, optimizers[0], criterion, args, aug=False)
+                wandb.log({"Test Loss": loss_test})
+                wandb.log({"Test ACC": acc_test})
+                wandb.log({"Test AUC": auc_test})
+
+        if ep in lr_schedule:
+            optimizer = torch.optim.SGD(net.parameters(), lr=lrs[i]*weight[i]*0.1, momentum=0.9, weight_decay=0.0005)
+            optimizers.append(optimizer)
+            
+    wandb.finish()
 
 def get_default_convnet_setting():
     net_width, net_depth, net_act, net_norm, net_pooling = 128, 3, 'relu', 'instancenorm', 'avgpooling'
