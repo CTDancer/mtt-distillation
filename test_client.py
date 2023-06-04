@@ -1,13 +1,13 @@
-from utils import test_client, get_eval_pool, get_network
+from utils import test_client, get_eval_pool, get_network, test_client_weighted
 import argparse
 import torch
 
 def main(args):
     args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    syn_lr = torch.tensor(args.lr_teacher).to(args.device)
-    syn_lr = syn_lr.detach().to(args.device).requires_grad_(True)
-    args.lr_net = syn_lr.item()
+    # syn_lr = torch.tensor(args.lr_teacher).to(args.device)
+    # syn_lr = syn_lr.detach().to(args.device).requires_grad_(True)
+    # args.lr_net = syn_lr.item()
 
     model_eval_pool = get_eval_pool(args.eval_mode, args.model, args.model)
 
@@ -17,7 +17,7 @@ def main(args):
 
     for model_eval in model_eval_pool:
         net_eval = get_network(model_eval, channel, num_classes, im_size).to(args.device)
-        test_client(args.ipc, 5, net_eval, '/shared/dqwang/scratch/tongchen/CRC-clients', args)
+        test_client_weighted(args.ipc, 5, net_eval, '/shared/dqwang/scratch/tongchen/CRC-clients/ipc=5', args)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Parameter Processing')
